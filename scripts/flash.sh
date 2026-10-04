@@ -111,6 +111,14 @@ if [[ ! -d "$app" ]]; then
   exit 1
 fi
 
+# AutoFill only works when the extension is inside the app.
+extension="$app/PlugIns/KeePassIOSAutoFill.appex"
+if [ ! -d "$extension" ]; then
+  echo "flash: warning: $extension is missing; AutoFill won't be offered" >&2
+elif ! /usr/libexec/PlistBuddy -c "Print :NSExtension:NSExtensionPointIdentifier" "$extension/Info.plist" >/dev/null 2>&1; then
+  echo "flash: warning: the AutoFill extension's Info.plist has no NSExtension entry" >&2
+fi
+
 echo "Installing..."
 xcrun devicectl device install app --device "$device_id" "$app"
 
@@ -119,3 +127,4 @@ if ((launch)); then
   xcrun devicectl device process launch --device "$device_id" --terminate-existing "$bundle_id"
 fi
 echo "Done."
+echo "AutoFill: turn on KeePassIOS in Settings > General > AutoFill & Passwords (once per install)."
