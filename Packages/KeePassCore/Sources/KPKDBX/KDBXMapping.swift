@@ -15,6 +15,7 @@ enum KDBXMapping {
         static let enableAutoType = "kdbx.enableAutoType"
         static let enableSearching = "kdbx.enableSearching"
         static let lastTopVisibleEntry = "kdbx.lastTopVisibleEntry"
+        static let unknownElements = "kdbx.unknownElements"
     }
 
     static let zeroUUID = UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0))
@@ -58,6 +59,7 @@ enum KDBXMapping {
         extras[ExtraKey.enableAutoType] = group.enableAutoType.map(encode)
         extras[ExtraKey.enableSearching] = group.enableSearching.map(encode)
         extras[ExtraKey.lastTopVisibleEntry] = group.lastTopVisibleEntry?.uuidString
+        extras[ExtraKey.unknownElements] = UnknownElementCoding.encode(group.unknownElements)
         return KPModel.Group(
             id: group.uuid,
             name: group.name ?? "",
@@ -106,6 +108,7 @@ enum KDBXMapping {
         var extras: [String: String] = [:]
         extras[ExtraKey.autoType] = entry.autoType.flatMap(encode)
         extras[ExtraKey.qualityCheck] = entry.qualityCheck.map { $0 ? "true" : "false" }
+        extras[ExtraKey.unknownElements] = UnknownElementCoding.encode(entry.unknownElements)
         if !protectedAttachments.isEmpty {
             extras[ExtraKey.protectedAttachments] = protectedAttachments.sorted().joined(separator: "\n")
         }

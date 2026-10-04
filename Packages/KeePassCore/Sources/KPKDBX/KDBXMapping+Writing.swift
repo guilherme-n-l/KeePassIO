@@ -20,7 +20,15 @@ extension KDBXMapping {
             .sorted { $0.key.uuidString < $1.key.uuidString }
             .map { KDBX.DeletedObject(uuid: $0.key, deletionTime: $0.value) }
         return Output(
-            database: KDBX(meta: meta, root: KDBX.Root(group: root, deletedObjects: deleted)),
+            database: KDBX(
+                meta: meta,
+                root: KDBX.Root(
+                    group: root,
+                    deletedObjects: deleted,
+                    unknownElements: previous.root.unknownElements
+                ),
+                unknownElements: previous.unknownElements
+            ),
             binaries: pool.contents
         )
     }
@@ -98,7 +106,8 @@ extension KDBXMapping {
                 KDBX.CustomDataItem(key: $0, value: group.customData[$0] ?? "")
             },
             entries: group.entries.map { entry(from: $0, pool: &pool) },
-            groups: group.groups.map { self.group(from: $0, pool: &pool) }
+            groups: group.groups.map { self.group(from: $0, pool: &pool) },
+            unknownElements: UnknownElementCoding.decode(group.extras[ExtraKey.unknownElements])
         )
     }
 
@@ -135,7 +144,8 @@ extension KDBXMapping {
             customData: entry.customData.keys.sorted().map {
                 KDBX.CustomDataItem(key: $0, value: entry.customData[$0] ?? "")
             },
-            history: entry.history.map { self.entry(from: $0, pool: &pool) }
+            history: entry.history.map { self.entry(from: $0, pool: &pool) },
+            unknownElements: UnknownElementCoding.decode(entry.extras[ExtraKey.unknownElements])
         )
     }
 

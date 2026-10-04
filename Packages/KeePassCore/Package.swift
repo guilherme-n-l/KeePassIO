@@ -65,7 +65,13 @@ let package = Package(
                 .product(name: "KDBXKit", package: "KDBXKit"),
             ]
         ),
-        .testTarget(name: "KPKDBXTests", dependencies: ["KPKDBX", "KPModel", "KPSession", "KPOTP"]),
+        .testTarget(
+            name: "KPKDBXTests",
+            dependencies: [
+                "KPKDBX", "KPModel", "KPSession", "KPOTP",
+                .product(name: "KDBXKit", package: "KDBXKit"),
+            ]
+        ),
         .testTarget(name: "KPAppStateTests", dependencies: ["KPAppState"]),
         .testTarget(name: "KPObservabilityTests", dependencies: ["KPObservability"]),
         .testTarget(name: "KPOTPTests", dependencies: ["KPOTP"]),
