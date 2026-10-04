@@ -229,6 +229,16 @@ final class AppModel {
         lockCount += 1
     }
 
+    /// Locks every open database because the user left it (went back to
+    /// the library). Like the Lock button, this doesn't offer Face ID on
+    /// the unlock screen that briefly shows as the database closes.
+    func closeAll() {
+        for (id, session) in sessions where session.state == .unlocked {
+            lockedByUser.insert(id)
+        }
+        lockAll()
+    }
+
     var hasUnlockedDatabase: Bool {
         sessions.values.contains { $0.state == .unlocked }
     }

@@ -75,8 +75,10 @@ struct GroupView: View {
             .padding(.vertical, 12)
         }
         .background(Color(uiColor: .systemGroupedBackground))
-        .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search")
-        .modifier(SearchScopeBar(isShown: !isRoot, scope: $scope))
+        .scrollDismissesKeyboard(.immediately)
+        .safeAreaInset(edge: .top, spacing: 0) {
+            GroupSearchBar(query: $query, scope: $scope, showsScope: !isRoot)
+        }
         .navigationTitle(group?.name ?? "")
         .toolbar { toolbar }
         .sensoryFeedback(.success, trigger: copyCount)

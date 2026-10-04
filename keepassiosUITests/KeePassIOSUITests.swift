@@ -51,7 +51,7 @@ final class KeePassIOSUITests: XCTestCase {
         XCTAssertTrue(app.buttons["entry.Mail"].waitForExistence(timeout: 10))
 
         // Search across the database.
-        let search = app.searchFields.firstMatch
+        let search = app.textFields["group.search"]
         XCTAssertTrue(search.waitForExistence(timeout: 5))
         search.tap()
         search.typeText("alic")

@@ -64,12 +64,17 @@ struct LibraryView: View {
             .navigationDestination(for: DatabaseRoute.self) { route in
                 destination(for: route)
             }
-            .onChange(of: path) { _, newPath in
+            .onChange(of: path) { oldPath, newPath in
+                // Opening a database from the library is a fresh visit:
+                // Face ID may be offered again.
+                if oldPath.isEmpty, !newPath.isEmpty {
+                    model.lockedByUser.removeAll()
+                }
                 // Going back to the library closes the database, as in
                 // KeePassium; opening it again asks for Face ID or the
                 // password.
                 if newPath.isEmpty {
-                    model.lockAll()
+                    model.closeAll()
                 }
             }
             .onChange(of: model.lockCount) {

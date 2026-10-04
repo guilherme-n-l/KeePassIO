@@ -1,21 +1,67 @@
 import KPModel
 import SwiftUI
 
-/// The "This Group / All Groups" switch under the search field, shown in
-/// subgroups (at the top level both mean the same).
-struct SearchScopeBar: ViewModifier {
-    let isShown: Bool
+/// The search field at the top of every group screen, with the
+/// "This Group / All Groups" switch in subgroups.
+///
+/// It's part of the page rather than the system search bar: the system
+/// bar sat at the bottom on the database's top level and at the top in
+/// subgroups (scopes move it), and could vanish after going back.
+struct GroupSearchBar: View {
+    @Binding var query: String
     @Binding var scope: SearchScope
+    let showsScope: Bool
+    @FocusState private var isFocused: Bool
 
-    func body(content: Content) -> some View {
-        if isShown {
-            content.searchScopes($scope, activation: .onSearchPresentation) {
-                Text("This Group").tag(SearchScope.group)
-                Text("All Groups").tag(SearchScope.database)
+    var body: some View {
+        VStack(spacing: 8) {
+            HStack(spacing: 8) {
+                HStack(spacing: 6) {
+                    Image(systemName: "magnifyingglass")
+                        .foregroundStyle(.secondary)
+                        .accessibilityHidden(true)
+                    TextField("Search", text: $query)
+                        .focused($isFocused)
+                        .submitLabel(.search)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .accessibilityIdentifier("group.search")
+                    if !query.isEmpty {
+                        Button {
+                            query = ""
+                        } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .foregroundStyle(.secondary)
+                        }
+                        .buttonStyle(.borderless)
+                        .accessibilityLabel("Clear Search")
+                    }
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 9)
+                .background(Color(uiColor: .tertiarySystemFill), in: Capsule())
+                if isFocused || !query.isEmpty {
+                    Button("Cancel") {
+                        query = ""
+                        isFocused = false
+                    }
+                    .transition(.move(edge: .trailing).combined(with: .opacity))
+                }
             }
-        } else {
-            content
+            if showsScope, isFocused || !query.isEmpty {
+                Picker("Search In", selection: $scope) {
+                    Text("This Group").tag(SearchScope.group)
+                    Text("All Groups").tag(SearchScope.database)
+                }
+                .pickerStyle(.segmented)
+                .transition(.opacity)
+            }
         }
+        .animation(.snappy, value: isFocused)
+        .animation(.snappy, value: query.isEmpty)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 8)
+        .background(.bar)
     }
 }
 
