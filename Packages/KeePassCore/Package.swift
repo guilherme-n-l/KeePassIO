@@ -13,6 +13,7 @@ let package = Package(
         .library(name: "KPGenerator", targets: ["KPGenerator"]),
         .library(name: "KPAppState", targets: ["KPAppState"]),
         .library(name: "KPModel", targets: ["KPModel"]),
+        .library(name: "KPMerge", targets: ["KPMerge"]),
         .executable(name: "kpbench", targets: ["kpbench"]),
     ],
     dependencies: [
@@ -33,6 +34,8 @@ let package = Package(
         .target(name: "KPAppState"),
         .target(name: "KPModel"),
         .testTarget(name: "KPModelTests", dependencies: ["KPModel"]),
+        .target(name: "KPMerge", dependencies: ["KPModel", "KPObservability"]),
+        .testTarget(name: "KPMergeTests", dependencies: ["KPMerge", "KPModel"]),
         .testTarget(name: "KPAppStateTests", dependencies: ["KPAppState"]),
         .testTarget(name: "KPObservabilityTests", dependencies: ["KPObservability"]),
         .testTarget(name: "KPOTPTests", dependencies: ["KPOTP"]),
