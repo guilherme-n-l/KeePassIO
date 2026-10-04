@@ -125,12 +125,12 @@ Also: `os.Logger` with privacy annotations (`.private` default; lint rule bans i
 - Golden-file KDBX corpora (KDBX3/4, all ciphers/KDFs, key files, history-heavy, attachment-heavy, corrupted).
 - Snapshot tests for SwiftUI (light/dark, Dynamic Type XXL, iPad).
 
-## 9. Open decisions (need your call)
-1. **License**: GPL-3 (lets us port ideas/code from KeePassium/XC/DX freely, keeps it open) vs MIT/Apache + clean-room. Recommendation: GPL-3. Note App Store + GPL has known friction; alternatively MPL-2.0.
-2. **Minimum iOS**: recommend iOS 17 (Observation, App Intents maturity); iOS 18 for the save-from-AutoFill and passkey-provider improvements as an enhancement.
-3. **Cloud storage**: v1 via Files providers only (iCloud, Dropbox, OneDrive apps), native WebDAV; direct OAuth APIs later.
-4. **Dev environment**: this container is Linux (no Xcode). Core packages + Linux profiling can be built here; SwiftUI apps/extensions need macOS CI or your Mac. Suggest GitHub Actions `macos-15` for app builds.
-5. **Funding model** (donations only?) and app name/bundle ID.
+## 9. Decisions (resolved)
+1. **License: MIT.** Clean-room only: KeePassium/KeePassDX/KeePassXC are GPL, so we read specs (KDBX format docs) and observe behavior, never copy their code. Third-party deps must be MIT/BSD/Apache/CC0 compatible (Argon2 reference impl is CC0/Apache).
+2. **Minimum iOS: 17.**
+3. **Storage: local files only, via the Files app** (document picker, security-scoped bookmarks, `UIDocumentPickerViewController`/`fileImporter`, Files-provider locations work transparently). No cloud SDKs, no WebDAV/SFTP. `KPStorage` shrinks to a local-file + bookmark layer.
+4. **Build env:** see Section 10.
+5. **Name: KeePasIOS** (repo `keepassios`). Bundle ID TBD.
 
 ## 10. Immediate next steps
 1. Confirm §9 decisions.
