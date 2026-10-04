@@ -213,7 +213,8 @@ Linux CI enforces the core-only rows (KDF, parse, search, merge, serialize) thro
   - `linux.yml` on each PR: build, test, a short fuzz run, `kpbench` gates.
   - `macos.yml` on each PR: Xcode build of all targets, unit and UI tests, `XCTMetric` gates.
   - `nightly.yml`: long fuzz run, bpftrace profiling artifacts, `xctrace` traces, `cargo-deny` once Rust exists.
-  - Actions are free for public repos. If the repo is private, macOS minutes are the main cost.
+  - The repo is public, so standard GitHub-hosted runners (Linux and macOS) are free: both `linux.yml` and `macos.yml` run on every PR and push to `main`.
+  - **Public-repo safety:** CI never signs or needs secrets. App builds use the simulator with `CODE_SIGNING_ALLOWED=NO`, so PRs from forks run the full suite safely. Workflows use `pull_request` (never `pull_request_target`), least-privilege `permissions: contents: read`, and actions pinned by commit SHA. TestFlight uploads are done from the owner's Mac (Xcode Organizer) until a protected release workflow is worth adding.
 - **Static checks:** SwiftLint, swift-format, dependency license check.
 
 ## 9. Decisions (resolved)
@@ -227,7 +228,7 @@ Linux CI enforces the core-only rows (KDF, parse, search, merge, serialize) thro
    - App Store review sometimes rejects names that lean on another product's name; "KeePass" is used by KeePassium, KeePassXC and KeePassDX, so risk is low, but have a fallback name ready before submission.
 5. **Build environment:**
    - Xcode on the owner's Mac is the primary build and the place for device profiling (Instruments).
-   - GitHub Actions runs Linux CI for the core packages and macOS CI for the apps. If the repo stays private and macOS minutes cost too much, macOS CI drops to nightly and PRs rely on local Xcode runs.
+   - GitHub Actions runs Linux CI for the core packages and macOS CI for the apps. The repo is public, so both run on every PR at no cost (section 8).
    - The Claude cloud container is Linux with no Swift toolchain and blocked downloads, so it can only write code, not build it.
 6. **No SwiftData.** Vault data stays in the KDBX file; non-secret app state uses `KPAppState` (section 3).
 7. **Platforms: iOS and iPadOS only.** No macOS, Mac Catalyst, "Designed for iPad" on Mac, visionOS or watchOS targets. (iPad apps can run on Apple silicon Macs; we opt out in App Store Connect to avoid supporting an untested platform.)
@@ -242,6 +243,7 @@ Linux CI enforces the core-only rows (KDF, parse, search, merge, serialize) thro
 11. **No zero-unlock operations.** Every quick-create path unlocks first; there is no locked-state inbox.
 12. **Telemetry: nothing is ever uploaded.** Users can export diagnostics files (and their databases) themselves through the share sheet.
 13. **Funding: GitHub Sponsors link in Settings**, shown once in About, never as a prompt or nag.
+14. **Repo: public.** Adds `SECURITY.md` (private vulnerability reporting through GitHub security advisories, not public issues), `CONTRIBUTING.md` (clean-room rule: no code from GPL KeePass clients), issue templates that tell reporters to attach diagnostics exports and never real databases or passwords, and Dependabot for Swift packages and GitHub Actions.
 
 ## 9b. Build vs. buy: handroll only when necessary
 **Rule:** use a maintained MIT/BSD/Apache/CC0 dependency unless it fails a hard requirement (license, security, extension memory, iOS 18, correctness). Every handrolled component needs a justification in this table.
@@ -322,11 +324,12 @@ There are three possible verdicts:
 | Building only through CI is slow | Develop on a Mac; keep Linux core tests fast |
 
 ## 12. Immediate next steps (M0)
-1. Clean up the template project:
+1. Add `SECURITY.md`, `CONTRIBUTING.md`, issue templates and Dependabot config (decision 14).
+2. Clean up the template project:
    - Set the deployment target to 18.0 (currently 26.5) and Swift to 6 (currently 5.0).
    - Remove SwiftData entirely: delete `Item.swift`, the `ModelContainer` in `keepassiosApp.swift`, and the `@Query`/`modelContext` use in `ContentView.swift`.
    - Add an App Group and Keychain access group.
-2. Add `Packages/KeePassCore` (KPModel, KPObservability, kpbench) with KDBXKit as a dependency, plus `linux.yml` and `macos.yml`.
-3. Run the KDBXKit spike (9b) and record the verdict in `docs/adr/0001-kdbx-library.md`.
-4. Add `Trace.span`, the uprobe markers and `Tools/bpf/spans.bt`, then profile `kpbench open` on the corpus under bpftrace (Linux) and Instruments (Mac).
-5. Start M1.
+3. Add `Packages/KeePassCore` (KPModel, KPObservability, kpbench) with KDBXKit as a dependency, plus `linux.yml` and `macos.yml`.
+4. Run the KDBXKit spike (9b) and record the verdict in `docs/adr/0001-kdbx-library.md`.
+5. Add `Trace.span`, the uprobe markers and `Tools/bpf/spans.bt`, then profile `kpbench open` on the corpus under bpftrace (Linux) and Instruments (Mac).
+6. Start M1.
