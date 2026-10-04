@@ -8,6 +8,8 @@
     // Tables and lists sometimes repeat headings like "Risks".
     "MD024": { "siblings_only": true },
     // Compact separator rows (|---|) are fine.
-    "MD060": false
+    "MD060": false,
+    // The README's centered header (logo and title) needs a little HTML.
+    "MD033": { "allowed_elements": ["h1", "p", "img", "br", "a"] }
   }
 }

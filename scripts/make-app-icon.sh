@@ -27,12 +27,19 @@ render() {
     -e "s/fill:#ffffff/fill:$2/g" \
     "$source_svg" >"$work/icon.svg"
   rsvg-convert --width 1024 --height 1024 "$work/icon.svg" -o "$work/icon.png"
-  convert "$work/icon.png" -background "$1" -alpha remove -alpha off -depth 8 "$out/$3"
+  convert "$work/icon.png" -background "$1" -alpha remove -alpha off -depth 8 -strip "$out/$3"
 }
 
 render "#4fa34f" "#ffffff" AppIcon.png
 render "#0e1c0e" "#5fbf5f" AppIcon-Dark.png
 render "#000000" "#ffffff" AppIcon-Tinted.png
+# The light icon with iOS-like rounded corners, for the README.
+media="$root/docs/media"
+mkdir -p "$media"
+convert "$out/AppIcon.png" -resize 512x512 \
+  \( -size 512x512 xc:none -fill white -draw "roundrectangle 0,0 511,511 115,115" \) \
+  -alpha off -compose CopyOpacity -composite -depth 8 -strip "$media/icon.png"
+
 # The glyph without its square, as a vector template image: the app tints
 # it with the accent color (lock cover, empty library).
 logo="$root/keepassios/Assets.xcassets/Logo.imageset"
@@ -57,4 +64,4 @@ cat >"$logo/Contents.json" <<'JSON'
 }
 JSON
 
-echo "Wrote $out and $logo"
+echo "Wrote $out, $logo and $media/icon.png"
