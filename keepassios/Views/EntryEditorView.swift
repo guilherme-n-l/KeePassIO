@@ -78,20 +78,22 @@ struct EntryEditorView: View {
                     .autocorrectionDisabled()
                     .accessibilityIdentifier("editor.url")
             }
+            OTPSetupSection(entry: $entry)
             Section("Notes") {
                 TextEditor(text: $entry.notes)
                     .frame(minHeight: 80)
                     .accessibilityIdentifier("editor.notes")
             }
             Section("Fields") {
-                ForEach(entry.customFieldNames, id: \.self) { name in
+                // One-time code fields are edited in their own section.
+                ForEach(EntryDetailView.displayedCustomFields(of: entry), id: \.self) { name in
                     LabeledContent(name) {
                         TextField(name, text: binding(forField: name))
                             .multilineTextAlignment(.trailing)
                     }
                 }
                 .onDelete { offsets in
-                    let names = entry.customFieldNames
+                    let names = EntryDetailView.displayedCustomFields(of: entry)
                     for index in offsets {
                         entry.fields[names[index]] = nil
                     }

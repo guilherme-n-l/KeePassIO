@@ -89,6 +89,28 @@ extension OTP {
         try self.init(secret: secret, kind: kind, period: period)
     }
 
+    /// A configuration from a secret typed in by hand: base32, as sites
+    /// show it, ignoring spaces, dashes and case.
+    public init(
+        base32Secret: String,
+        algorithm: Algorithm = .sha1,
+        kind: Kind = .totp(digits: 6),
+        period: Int = 30,
+        issuer: String? = nil,
+        account: String? = nil
+    ) throws(OTPError) {
+        let cleaned = base32Secret.uppercased().filter { !$0.isWhitespace && $0 != "-" }
+        guard let secret = Base32.decode(cleaned), !secret.isEmpty else { throw .invalidSecret }
+        try self.init(
+            secret: secret,
+            algorithm: algorithm,
+            kind: kind,
+            period: period,
+            issuer: issuer,
+            account: account
+        )
+    }
+
     /// The otpauth URI for this configuration, as written to the `otp`
     /// field and shown as a QR code.
     public var uri: String {

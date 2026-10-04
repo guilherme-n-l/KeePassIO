@@ -67,6 +67,18 @@ struct OTPTests {
 }
 
 struct OTPParsingTests {
+    @Test func secretsTypedByHand() throws {
+        // As sites print it: lowercase, in groups.
+        let typed = try OTP(base32Secret: "gezd gnbv-gy3t qojq", issuer: "Example", account: "alice")
+        let canonical = try OTP(base32Secret: "GEZDGNBVGY3TQOJQ")
+        #expect(typed.secret == canonical.secret)
+        #expect(typed.code(at: Date(timeIntervalSince1970: 59)) == canonical.code(at: Date(timeIntervalSince1970: 59)))
+        // The URI written to the entry round-trips.
+        #expect(try OTP(uri: typed.uri) == typed)
+        #expect(throws: OTPError.invalidSecret) { try OTP(base32Secret: "not base32!") }
+        #expect(throws: OTPError.invalidSecret) { try OTP(base32Secret: "  ") }
+    }
+
     @Test func parsesFullURI() throws {
         let uri =
             "otpauth://totp/Example:alice@example.com?secret=JBSWY3DPEHPK3PXP"
