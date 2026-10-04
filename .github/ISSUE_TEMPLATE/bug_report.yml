@@ -1,0 +1,36 @@
+name: Bug report
+description: Something doesn't work as expected.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Never attach a real database, key file or password.** If a database is needed to reproduce the problem, create a new one with throwaway data.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What you did, what you expected, and what happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open a database with ...
+        2. Tap ...
+    validations:
+      required: true
+  - type: input
+    id: versions
+    attributes:
+      label: App version, iOS version and device
+      placeholder: KeePassIOS 1.0 (42), iOS 18.4, iPhone 15
+    validations:
+      required: true
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Diagnostics export
+      description: Settings → Diagnostics → Export, then attach the file here. It contains timings and sizes only, never entry data.
