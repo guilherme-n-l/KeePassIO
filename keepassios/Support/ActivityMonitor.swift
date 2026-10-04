@@ -65,9 +65,8 @@ final class ActivityMonitor {
     }
 }
 
-/// Applies the accent color to the window's UIKit tint as well, which menu
-/// pickers, alerts and other UIKit-drawn controls use instead of SwiftUI's
-/// `.tint`.
+/// Applies the accent color to UIKit's tint as well, which menu pickers,
+/// alerts and other UIKit-drawn controls use instead of SwiftUI's `.tint`.
 struct WindowTint: UIViewRepresentable {
     let color: Color
 
@@ -81,7 +80,7 @@ struct WindowTint: UIViewRepresentable {
 
     final class TintView: UIView {
         var tint: UIColor? {
-            didSet { window?.tintColor = tint }
+            didSet { apply() }
         }
 
         override init(frame: CGRect) {
@@ -94,7 +93,21 @@ struct WindowTint: UIViewRepresentable {
 
         override func didMoveToWindow() {
             super.didMoveToWindow()
-            window?.tintColor = tint
+            apply()
+        }
+
+        /// Sets the tint on the window and on every presented screen: a
+        /// sheet's root view keeps the tint it was presented with, so an
+        /// open sheet (Settings, where the color is picked) would otherwise
+        /// show its menu pickers in the previous color.
+        private func apply() {
+            guard let window else { return }
+            window.tintColor = tint
+            var controller = window.rootViewController?.presentedViewController
+            while let current = controller {
+                current.view.tintColor = tint
+                controller = current.presentedViewController
+            }
         }
     }
 }
