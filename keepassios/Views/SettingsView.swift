@@ -11,6 +11,7 @@ struct SettingsView: View {
     var body: some View {
         NavigationStack {
             Form {
+                AutoFillSettingsSection()
                 Section {
                     Picker("Auto-Lock", selection: setting(\.autoLockSeconds)) {
                         Text("Immediately").tag(0)

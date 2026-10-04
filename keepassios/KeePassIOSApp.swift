@@ -6,6 +6,7 @@ struct KeePassIOSApp: App {
     @State private var model = AppModel()
     @State private var diagnostics = DiagnosticsRecorder()
     @State private var activity = ActivityMonitor()
+    @State private var autoFill = AutoFillSetup()
     @Environment(\.scenePhase) private var scenePhase
     @State private var inactiveSince: Date?
 
@@ -14,6 +15,7 @@ struct KeePassIOSApp: App {
             LibraryView()
                 .environment(model)
                 .environment(diagnostics)
+                .environment(autoFill)
                 .background(ActivityMonitor.Installer(monitor: activity))
                 .overlay {
                     // Hides the contents from the app switcher snapshot and
@@ -25,6 +27,7 @@ struct KeePassIOSApp: App {
                 }
                 .onAppear { QuickCreateCenter.shared.attach(model) }
                 .task { await model.load() }
+                .task { await autoFill.refresh() }
                 .task { await lockWhenIdle() }
         }
         .onChange(of: scenePhase) { _, phase in
@@ -51,6 +54,8 @@ struct KeePassIOSApp: App {
                 }
                 inactiveSince = nil
                 activity.recordActivity()
+                // The user may have just turned AutoFill on in Settings.
+                Task { await autoFill.refresh() }
             @unknown default:
                 break
             }

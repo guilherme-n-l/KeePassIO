@@ -127,4 +127,4 @@ if ((launch)); then
   xcrun devicectl device process launch --device "$device_id" --terminate-existing "$bundle_id"
 fi
 echo "Done."
-echo "AutoFill: turn on KeePassIOS in Settings > General > AutoFill & Passwords (once per install)."
+echo "AutoFill: tap Turn On AutoFill in the app (library or Settings) once per install."

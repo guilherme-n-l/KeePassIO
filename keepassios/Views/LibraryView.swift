@@ -32,6 +32,7 @@ struct LibraryView: View {
                     }
                 } else {
                     List {
+                        AutoFillPromptCard()
                         ForEach(model.databases) { reference in
                             NavigationLink(value: reference.id) {
                                 DatabaseRow(
