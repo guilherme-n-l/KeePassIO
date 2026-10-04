@@ -96,18 +96,8 @@ struct WindowTint: UIViewRepresentable {
             apply()
         }
 
-        /// Sets the tint on the window and on every presented screen: a
-        /// sheet's root view keeps the tint it was presented with, so an
-        /// open sheet (Settings, where the color is picked) would otherwise
-        /// show its menu pickers in the previous color.
         private func apply() {
-            guard let window else { return }
-            window.tintColor = tint
-            var controller = window.rootViewController?.presentedViewController
-            while let current = controller {
-                current.view.tintColor = tint
-                controller = current.presentedViewController
-            }
+            window?.tintColor = tint
         }
     }
 }

@@ -85,6 +85,22 @@ private struct EntryPickerView: View {
         .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search")
         .navigationTitle(model.selected?.name ?? "")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbarTitleMenu {
+            // Tap the title to switch to another database.
+            if model.databases.count > 1 {
+                ForEach(model.databases) { database in
+                    Button {
+                        model.select(database)
+                    } label: {
+                        if database.id == model.selected?.id {
+                            Label(database.name, systemImage: "checkmark")
+                        } else {
+                            Text(database.name)
+                        }
+                    }
+                }
+            }
+        }
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Button {

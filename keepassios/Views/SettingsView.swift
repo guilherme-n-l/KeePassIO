@@ -21,12 +21,14 @@ struct SettingsView: View {
                         Text("After 5 Minutes").tag(300)
                         Text("After 15 Minutes").tag(900)
                     }
+                    .id(pickerIdentity)
                     Picker("Clear Clipboard", selection: setting(\.clipboardClearSeconds)) {
                         Text("After 30 Seconds").tag(30)
                         Text("After 1 Minute").tag(60)
                         Text("After 2 Minutes").tag(120)
                         Text("Never").tag(0)
                     }
+                    .id(pickerIdentity)
                 } header: {
                     Text("Security")
                 }
@@ -61,6 +63,13 @@ struct SettingsView: View {
                 Button("Done") { dismiss() }
             }
         }
+    }
+
+    /// Menu pickers keep the tint they were created with (a SwiftUI bug,
+    /// see developer.apple.com/forums/thread/770369), so they're rebuilt
+    /// when the accent color changes.
+    private var pickerIdentity: String {
+        model.settings.accentColor ?? "default"
     }
 
     private func setting<Value>(_ keyPath: WritableKeyPath<Settings, Value>) -> Binding<Value> {
