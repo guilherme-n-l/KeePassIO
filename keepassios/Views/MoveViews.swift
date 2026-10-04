@@ -2,10 +2,11 @@ import KPModel
 import KPSession
 import SwiftUI
 
-/// The path from the top of the database to the group on screen. Every
-/// part is a drop target, so an entry or group can be dragged up and out
-/// of the group, like the path bar in the Files app.
+/// The path from the top of the database to the group on screen, like the
+/// path bar in the Files app: tap a part to go back to it, or drop an
+/// entry or group on it to move it there.
 struct Breadcrumbs: View {
+    @Environment(\.goToDatabaseLevel) private var goToDatabaseLevel
     let session: DatabaseSession
     let groupID: UUID
     let onDrop: ([DraggedItem], UUID) -> Bool
@@ -27,10 +28,10 @@ struct Breadcrumbs: View {
                     }
                     Crumb(
                         name: index == 0 ? session.database?.meta.name ?? group.name : group.name,
-                        isCurrent: group.id == groupID
-                    ) { items in
-                        onDrop(items, group.id)
-                    }
+                        isCurrent: group.id == groupID,
+                        onTap: { goToDatabaseLevel(index) },
+                        onDrop: { items in onDrop(items, group.id) }
+                    )
                 }
             }
         }
@@ -42,22 +43,28 @@ struct Breadcrumbs: View {
 private struct Crumb: View {
     let name: String
     let isCurrent: Bool
+    let onTap: () -> Void
     let onDrop: ([DraggedItem]) -> Bool
     @State private var isTargeted = false
 
     var body: some View {
-        Text(name.isEmpty ? String(localized: "Database") : name)
-            .font(.subheadline)
-            .fontWeight(isCurrent ? .semibold : .regular)
-            .foregroundStyle(isCurrent ? .primary : .secondary)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 4)
-            .background(isTargeted ? Color.accentColor.opacity(0.25) : Color.clear, in: Capsule())
-            .dropDestination(for: DraggedItem.self) { items, _ in
-                onDrop(items)
-            } isTargeted: {
-                isTargeted = $0
-            }
+        Button(action: onTap) {
+            Text(name.isEmpty ? String(localized: "Database") : name)
+                .font(.subheadline)
+                .fontWeight(isCurrent ? .semibold : .regular)
+                .foregroundStyle(isCurrent ? AnyShapeStyle(.primary) : AnyShapeStyle(.tint))
+                .padding(.horizontal, 10)
+                .padding(.vertical, 4)
+                .background(isTargeted ? Color.accentColor.opacity(0.25) : Color.clear, in: Capsule())
+                .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .disabled(isCurrent)
+        .dropDestination(for: DraggedItem.self) { items, _ in
+            onDrop(items)
+        } isTargeted: {
+            isTargeted = $0
+        }
     }
 }
 

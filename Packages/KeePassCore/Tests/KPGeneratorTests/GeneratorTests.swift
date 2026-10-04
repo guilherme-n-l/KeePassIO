@@ -58,6 +58,39 @@ struct PasswordGeneratorTests {
         #expect(Set(passwords).count == 20)
     }
 
+    @Test func keePassXCOptions() throws {
+        var random = SeededGenerator(state: 7)
+        let options = PasswordGenerator.Options(
+            length: 40,
+            sets: [.lowercase, .extendedASCII],
+            alsoInclude: "@#",
+            exclude: "aeiou"
+        )
+        let password = try generator.password(options, using: &random)
+        #expect(password.count == 40)
+        #expect(!password.contains { "aeiou".contains($0) })
+        // Every group is represented: lowercase, Latin-1, and the extras.
+        #expect(password.contains { $0.isASCII && $0.isLowercase })
+        #expect(password.contains { $0.unicodeScalars.first.map { $0.value >= 0xA1 } == true })
+        #expect(password.contains { "@#".contains($0) })
+        #expect(!password.contains("\u{AD}"))
+    }
+
+    @Test func pickingFromEveryGroupIsOptional() throws {
+        var random = SeededGenerator(state: 1)
+        let options = PasswordGenerator.Options(length: 2, sets: .all, pickFromEveryGroup: false)
+        // Two characters can't cover four groups, but that's not required.
+        #expect(try generator.password(options, using: &random).count == 2)
+        #expect(throws: GeneratorError.invalidLength(2)) {
+            try generator.password(PasswordGenerator.Options(length: 2, sets: .all))
+        }
+    }
+
+    @Test func excludingEverythingIsAnError() {
+        let options = PasswordGenerator.Options(sets: .digits, exclude: "0123456789")
+        #expect(throws: GeneratorError.noCharacterSets) { try generator.password(options) }
+    }
+
     @Test func entropy() {
         let bits = PasswordGenerator.entropyBits(length: 20, sets: .all, excludingLookalikes: false)
         // 94 printable ASCII characters: log2(94) ≈ 6.555 bits each.
@@ -85,6 +118,19 @@ struct PassphraseGeneratorTests {
             #expect(word.first?.isUppercase == true)
             #expect(generator.words.contains(word.lowercased()))
         }
+    }
+
+    @Test func wordCases() throws {
+        let generator = try PassphraseGenerator(words: ["alpha", "beta"])
+        var random = SeededGenerator(state: 3)
+        let upper = try generator.passphrase(wordCount: 4, separator: " ", wordCase: .upper, using: &random)
+        #expect(upper == upper.uppercased())
+        let title = try generator.passphrase(wordCount: 4, separator: " ", wordCase: .title, using: &random)
+        #expect(
+            title.split(separator: " ").allSatisfy {
+                $0.first?.isUppercase == true && $0.dropFirst() == $0.dropFirst().lowercased()
+            }
+        )
     }
 
     @Test func rejectsBadInput() throws {

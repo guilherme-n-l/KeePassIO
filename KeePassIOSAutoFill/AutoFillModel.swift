@@ -1,6 +1,5 @@
 import Foundation
 import KPAppState
-import KPGenerator
 import KPKDBX
 import KPModel
 import KPOTP
@@ -36,6 +35,8 @@ final class AutoFillModel {
     private(set) var selected: DatabaseReference?
     private(set) var session: DatabaseSession?
     private(set) var isLoaded = false
+    /// The generator settings shared with the app.
+    private(set) var generatorSettings = GeneratorSettings()
     /// Set once the request is answered, so the sheet doesn't show the
     /// unlock screen (and offer Face ID) while it closes.
     private(set) var isFinished = false
@@ -63,6 +64,7 @@ final class AutoFillModel {
         do {
             let state = try await store.load()
             databases = state.databases
+            generatorSettings = state.settings.generator
             let preferred = state.settings.quickCreateDatabaseID
             if let reference = databases.first(where: { $0.id == preferred }) ?? databases.first {
                 select(reference)
@@ -162,12 +164,37 @@ final class AutoFillModel {
         complete(completion)
     }
 
-    /// The site being filled, for a new entry's title and URL.
+    /// The site being filled, for a new entry's title and URL. The URL
+    /// keeps the page but drops its query and fragment (sign-in tokens,
+    /// redirect parameters and the like).
     var newEntryDefaults: (title: String, url: String) {
         let identifier = serviceIdentifiers.first ?? ""
-        let host = URL(string: identifier)?.host() ?? identifier
+        guard !identifier.isEmpty else { return ("", "") }
+        let full = identifier.contains("://") ? identifier : "https://\(identifier)"
+        var components = URLComponents(string: full)
+        components?.query = nil
+        components?.fragment = nil
+        let host = components?.host ?? identifier
         let title = host.hasPrefix("www.") ? String(host.dropFirst(4)) : host
-        return (title, identifier.contains("://") || identifier.isEmpty ? identifier : "https://\(identifier)")
+        return (title, components?.string ?? full)
+    }
+
+    /// User names already in the database, most used first.
+    var knownUserNames: [String] {
+        guard let database = session?.database else { return [] }
+        var counts: [String: Int] = [:]
+        for entry in database.activeEntries where !entry.userName.isEmpty {
+            counts[entry.userName, default: 0] += 1
+        }
+        return counts.sorted { $0.value != $1.value ? $0.value > $1.value : $0.key < $1.key }.map(\.key)
+    }
+
+    /// Remembers generator settings changed here, for the app too.
+    func saveGeneratorSettings(_ settings: GeneratorSettings) {
+        generatorSettings = settings
+        Task {
+            _ = try? await AppStateStore.shared()?.update { $0.settings.generator = settings }
+        }
     }
 
     /// Adds an entry and saves the database. When filling a password, the
@@ -183,8 +210,4 @@ final class AutoFillModel {
         }
     }
 
-    /// A strong random password for new entries.
-    static func generatedPassword() -> String {
-        (try? PasswordGenerator().password(length: 20)) ?? ""
-    }
 }

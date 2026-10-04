@@ -1,5 +1,6 @@
 import KPAppState
 import KPModel
+import KPPlatform
 import KPSession
 import SwiftUI
 
@@ -65,7 +66,7 @@ struct EntryEditorView: View {
                     Button {
                         isShowingGenerator = true
                     } label: {
-                        Image(systemName: "wand.and.stars")
+                        Image(systemName: "dice")
                     }
                     .buttonStyle(.borderless)
                     .accessibilityLabel("Generate Password")
@@ -144,7 +145,9 @@ struct EntryEditorView: View {
         }
         .sheet(isPresented: $isShowingGenerator) {
             NavigationStack {
-                GeneratorView { generated in
+                GeneratorView(settings: model.settings.generator) { settings in
+                    Task { await model.updateGeneratorSettings(settings) }
+                } onUse: { generated in
                     password = generated
                 }
             }

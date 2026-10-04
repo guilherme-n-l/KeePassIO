@@ -25,6 +25,39 @@ public struct PassphraseGenerator: Sendable {
         return try PassphraseGenerator(words: words)
     }
 
+    /// How each word is written, as in KeePassXC.
+    public enum WordCase: String, Codable, Sendable, CaseIterable {
+        case lower
+        case upper
+        case title
+
+        func apply(to word: String) -> String {
+            switch self {
+            case .lower: word.lowercased()
+            case .upper: word.uppercased()
+            case .title: word.prefix(1).uppercased() + word.dropFirst()
+            }
+        }
+    }
+
+    public func passphrase(wordCount: Int, separator: String, wordCase: WordCase) throws(GeneratorError) -> String {
+        var system = SystemRandomNumberGenerator()
+        return try passphrase(wordCount: wordCount, separator: separator, wordCase: wordCase, using: &system)
+    }
+
+    public func passphrase<Generator: RandomNumberGenerator>(
+        wordCount: Int,
+        separator: String,
+        wordCase: WordCase,
+        using random: inout Generator
+    ) throws(GeneratorError) -> String {
+        guard (1...64).contains(wordCount) else { throw .invalidWordCount(wordCount) }
+        return (0..<wordCount).map { _ in
+            wordCase.apply(to: words.randomElement(using: &random) ?? words[0])
+        }
+        .joined(separator: separator)
+    }
+
     public func passphrase(
         wordCount: Int,
         separator: String = "-",

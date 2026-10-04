@@ -71,6 +71,18 @@ struct AppStateStoreTests {
         #expect(reference.name == "Database")
     }
 
+    @Test func olderGeneratorSettingsStillLoad() async throws {
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let json = #"{"version": 1, "settings": {"generator": {"length": 32, "capitalizeWords": true}}}"#
+        try Data(json.utf8).write(to: store.fileURL)
+
+        let generator = try await store.load().settings.generator
+        #expect(generator.length == 32)
+        #expect(generator.wordCase == .title)
+        #expect(generator.pickFromEveryGroup)
+        #expect(generator.alsoInclude.isEmpty)
+    }
+
     @Test func refusesFilesFromNewerVersions() async throws {
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         try Data(#"{"version": 99, "somethingNew": true}"#.utf8).write(to: store.fileURL)

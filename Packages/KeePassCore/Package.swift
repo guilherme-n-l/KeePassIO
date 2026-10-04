@@ -75,7 +75,7 @@ let package = Package(
         ),
         // Apple-only services shared by the app and its extensions; empty on
         // Linux.
-        .target(name: "KPPlatform", dependencies: ["KPModel", "KPSession"]),
+        .target(name: "KPPlatform", dependencies: ["KPAppState", "KPGenerator", "KPModel", "KPSession"]),
         .testTarget(name: "KPAppStateTests", dependencies: ["KPAppState"]),
         .testTarget(name: "KPObservabilityTests", dependencies: ["KPObservability"]),
         .testTarget(name: "KPOTPTests", dependencies: ["KPOTP"]),

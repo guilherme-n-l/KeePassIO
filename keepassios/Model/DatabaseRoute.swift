@@ -1,5 +1,6 @@
 import CoreTransferable
 import Foundation
+import SwiftUI
 import UniformTypeIdentifiers
 
 /// Screens inside an unlocked database, pushed onto the library's
@@ -29,4 +30,10 @@ extension UTType {
     /// Entries and groups dragged within the app; declared in
     /// Config/keepassios-Info.plist.
     nonisolated static let keepassItem = UTType(exportedAs: "dev.guilhermenl.keepassios.item")
+}
+
+extension EnvironmentValues {
+    /// Goes back to a level of the open database: 0 is its top level, 1
+    /// a group in it, and so on. Used by the path bar.
+    @Entry var goToDatabaseLevel: @MainActor @Sendable (Int) -> Void = { _ in }
 }

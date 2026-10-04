@@ -137,11 +137,18 @@ public struct Settings: Codable, Equatable, Sendable {
     public var mayCheckBreaches: Bool { networkAllowed && breachCheckEnabled }
 }
 
-/// The password generator's last-used configuration.
+/// The password generator's last-used configuration, with the options
+/// KeePassXC's generator has.
 public struct GeneratorSettings: Codable, Equatable, Sendable {
     public enum Mode: String, Codable, Sendable {
         case password
         case passphrase
+    }
+
+    public enum WordCase: String, Codable, Sendable, CaseIterable {
+        case lower
+        case upper
+        case title
     }
 
     public var mode: Mode = .password
@@ -150,10 +157,16 @@ public struct GeneratorSettings: Codable, Equatable, Sendable {
     public var includeUppercase = true
     public var includeDigits = true
     public var includeSymbols = true
+    public var includeExtendedASCII = false
     public var excludeLookalikes = false
+    public var pickFromEveryGroup = true
+    /// Extra characters to choose from.
+    public var alsoInclude = ""
+    /// Characters never to use.
+    public var excludeCharacters = ""
     public var wordCount: Int = 6
     public var wordSeparator: String = "-"
-    public var capitalizeWords = false
+    public var wordCase = WordCase.lower
 
     public init() {}
 
@@ -168,11 +181,47 @@ public struct GeneratorSettings: Codable, Equatable, Sendable {
             try container.decodeIfPresent(Bool.self, forKey: .includeUppercase) ?? defaults.includeUppercase
         includeDigits = try container.decodeIfPresent(Bool.self, forKey: .includeDigits) ?? defaults.includeDigits
         includeSymbols = try container.decodeIfPresent(Bool.self, forKey: .includeSymbols) ?? defaults.includeSymbols
+        includeExtendedASCII =
+            try container.decodeIfPresent(Bool.self, forKey: .includeExtendedASCII) ?? defaults.includeExtendedASCII
         excludeLookalikes =
             try container.decodeIfPresent(Bool.self, forKey: .excludeLookalikes) ?? defaults.excludeLookalikes
+        pickFromEveryGroup =
+            try container.decodeIfPresent(Bool.self, forKey: .pickFromEveryGroup) ?? defaults.pickFromEveryGroup
+        alsoInclude = try container.decodeIfPresent(String.self, forKey: .alsoInclude) ?? defaults.alsoInclude
+        excludeCharacters =
+            try container.decodeIfPresent(String.self, forKey: .excludeCharacters) ?? defaults.excludeCharacters
         wordCount = try container.decodeIfPresent(Int.self, forKey: .wordCount) ?? defaults.wordCount
         wordSeparator = try container.decodeIfPresent(String.self, forKey: .wordSeparator) ?? defaults.wordSeparator
-        capitalizeWords =
-            try container.decodeIfPresent(Bool.self, forKey: .capitalizeWords) ?? defaults.capitalizeWords
+        if let wordCase = try container.decodeIfPresent(WordCase.self, forKey: .wordCase) {
+            self.wordCase = wordCase
+        } else {
+            // Before word cases there was only "capitalize words".
+            let capitalized = try container.decodeIfPresent(Bool.self, forKey: .capitalizeWords) ?? false
+            wordCase = capitalized ? .title : defaults.wordCase
+        }
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case mode, length, includeLowercase, includeUppercase, includeDigits, includeSymbols, includeExtendedASCII
+        case excludeLookalikes, pickFromEveryGroup, alsoInclude, excludeCharacters, wordCount, wordSeparator
+        case wordCase, capitalizeWords
+    }
+
+    public func encode(to encoder: any Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(mode, forKey: .mode)
+        try container.encode(length, forKey: .length)
+        try container.encode(includeLowercase, forKey: .includeLowercase)
+        try container.encode(includeUppercase, forKey: .includeUppercase)
+        try container.encode(includeDigits, forKey: .includeDigits)
+        try container.encode(includeSymbols, forKey: .includeSymbols)
+        try container.encode(includeExtendedASCII, forKey: .includeExtendedASCII)
+        try container.encode(excludeLookalikes, forKey: .excludeLookalikes)
+        try container.encode(pickFromEveryGroup, forKey: .pickFromEveryGroup)
+        try container.encode(alsoInclude, forKey: .alsoInclude)
+        try container.encode(excludeCharacters, forKey: .excludeCharacters)
+        try container.encode(wordCount, forKey: .wordCount)
+        try container.encode(wordSeparator, forKey: .wordSeparator)
+        try container.encode(wordCase, forKey: .wordCase)
     }
 }

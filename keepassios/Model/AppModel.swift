@@ -299,6 +299,12 @@ final class AppModel {
 
     // MARK: Settings
 
+    func updateGeneratorSettings(_ generator: GeneratorSettings) async {
+        var settings = settings
+        settings.generator = generator
+        await updateSettings(settings)
+    }
+
     func updateSettings(_ settings: Settings) async {
         state = (try? await store.update { $0.settings = settings }) ?? state
     }
