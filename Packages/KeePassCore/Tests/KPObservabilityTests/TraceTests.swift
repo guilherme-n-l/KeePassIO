@@ -134,3 +134,27 @@ struct ChromeTraceTests {
         #expect(event["tid"] as? Int == 9)
     }
 }
+
+@Suite(.serialized)
+struct HistogramBackendTests {
+    @Test func aggregatesPerSpanAndExports() throws {
+        let backend = HistogramBackend()
+        Trace.bootstrap([backend])
+        defer { Trace.bootstrap(Trace.defaultBackends()) }
+
+        for _ in 0..<5 {
+            Trace.span(.searchQuery) {}
+        }
+        Trace.span(.saveFsync) {}
+
+        let histograms = backend.histograms
+        #expect(histograms[.searchQuery]?.count == 5)
+        #expect(histograms[.saveFsync]?.count == 1)
+
+        let json = try backend.exportJSON(appVersion: "1.0 (1)", osVersion: "test")
+        let object = try #require(JSONSerialization.jsonObject(with: json) as? [String: Any])
+        let spans = try #require(object["spans"] as? [String: Any])
+        #expect(Set(spans.keys) == ["search.query", "save.fsync"])
+        #expect((object["bucketUpperBoundsMicroseconds"] as? [Int])?.first == 2)
+    }
+}
