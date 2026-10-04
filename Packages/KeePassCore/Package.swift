@@ -52,7 +52,10 @@ let package = Package(
         .testTarget(name: "KPSearchTests", dependencies: ["KPSearch", "KPModel"]),
         .target(
             name: "KPSession",
-            dependencies: ["KPModel", "KPMerge", "KPSearch", "KPObservability", "KPAppState"]
+            dependencies: [
+                "KPModel", "KPMerge", "KPSearch", "KPObservability", "KPAppState",
+                .product(name: "Crypto", package: "swift-crypto"),
+            ]
         ),
         .testTarget(name: "KPSessionTests", dependencies: ["KPSession", "KPModel", "KPMerge"]),
         .target(

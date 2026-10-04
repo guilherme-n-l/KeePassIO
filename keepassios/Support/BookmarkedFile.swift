@@ -6,8 +6,8 @@ import KPSession
 ///
 /// Reads and writes go through `NSFileCoordinator`, so File Provider
 /// extensions (iCloud Drive, Dropbox, ...) see consistent files and
-/// download them first when needed. Writes are atomic and check that the
-/// file is still the version that was read.
+/// download them first when needed. Writes are atomic and check, by
+/// content hash, that the file is still the version that was read.
 struct BookmarkedFile: DatabaseFile {
     let bookmark: Data
     let displayName: String
@@ -22,7 +22,7 @@ struct BookmarkedFile: DatabaseFile {
         NSFileCoordinator().coordinate(readingItemAt: url, options: [], error: &coordinationError) { readURL in
             do {
                 let data = try Data(contentsOf: readURL)
-                result = .success((data, Self.version(of: readURL)))
+                result = .success((data, FileVersion(of: data, modificationDate: Self.modificationDate(of: readURL))))
             } catch {
                 result = .failure(.ioFailure(error.localizedDescription))
             }
@@ -39,14 +39,16 @@ struct BookmarkedFile: DatabaseFile {
         var coordinationError: NSError?
         var result: Result<FileVersion, FileError> = .failure(.accessDenied)
         NSFileCoordinator().coordinate(writingItemAt: url, options: [], error: &coordinationError) { writeURL in
-            let current = Self.version(of: writeURL)
-            if let expected, current != expected {
-                result = .failure(.changedOnDisk(current: current))
-                return
+            if let expected, let currentData = try? Data(contentsOf: writeURL) {
+                let current = FileVersion(of: currentData, modificationDate: Self.modificationDate(of: writeURL))
+                if current.contentHash != expected.contentHash {
+                    result = .failure(.changedOnDisk(current: current))
+                    return
+                }
             }
             do {
                 try data.write(to: writeURL, options: .atomic)
-                result = .success(Self.version(of: writeURL))
+                result = .success(FileVersion(of: data, modificationDate: Self.modificationDate(of: writeURL)))
             } catch {
                 result = .failure(.ioFailure(error.localizedDescription))
             }
@@ -64,9 +66,8 @@ struct BookmarkedFile: DatabaseFile {
         }
     }
 
-    private static func version(of url: URL) -> FileVersion {
-        let values = try? url.resourceValues(forKeys: [.contentModificationDateKey, .fileSizeKey])
-        return FileVersion(modificationDate: values?.contentModificationDate, size: values?.fileSize ?? 0)
+    private static func modificationDate(of url: URL) -> Date? {
+        try? url.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate
     }
 
     /// Creates a bookmark for a URL from the document picker.

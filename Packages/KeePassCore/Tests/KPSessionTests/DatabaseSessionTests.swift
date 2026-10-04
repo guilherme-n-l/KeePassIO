@@ -100,9 +100,6 @@ struct DatabaseSessionTests {
         try other.addEntry(fromOther)
         try await other.save()
 
-        // The file's modification time can have one-second resolution, so
-        // make sure the app's version check sees a different file.
-        try await Task.sleep(for: .milliseconds(1_100))
         let fromApp = app.newEntry(title: "Added in app")
         try app.addEntry(fromApp)
         try await app.save()
@@ -148,5 +145,26 @@ struct AutoLockPolicyTests {
         let policy = AutoLockPolicy(timeout: 0)
         #expect(!policy.shouldLock(lastActivity: .distantPast, backgroundedAt: nil, now: now))
         #expect(policy.shouldLock(lastActivity: now, backgroundedAt: now, now: now))
+    }
+}
+
+struct LocalDatabaseFileTests {
+    @Test func detectsSameSizeChangesMadeImmediately() async throws {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("LocalFile-\(UUID()).kdbx")
+        let file = LocalDatabaseFile(url: url)
+        let first = try await file.write(Data("version-a".utf8), expecting: nil)
+
+        // Another writer replaces the file right away with content of the
+        // same size, so size and (coarse) modification time can't tell.
+        try Data("version-b".utf8).write(to: url, options: .atomic)
+
+        await #expect(throws: FileError.self) {
+            _ = try await file.write(Data("version-c".utf8), expecting: first)
+        }
+        #expect(try Data(contentsOf: url) == Data("version-b".utf8))
+
+        let current = try await file.read().version
+        _ = try await file.write(Data("version-c".utf8), expecting: current)
+        #expect(try Data(contentsOf: url) == Data("version-c".utf8))
     }
 }

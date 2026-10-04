@@ -1,14 +1,26 @@
+import Crypto
 import Foundation
 
 /// Identifies one version of a file, to notice changes made elsewhere
 /// (another app, a sync client, an extension) before overwriting them.
+///
+/// The content hash is what makes the check reliable: two saves of a
+/// database often produce files of the same size, and modification times
+/// can be too coarse to tell writes a few milliseconds apart.
 public struct FileVersion: Sendable, Equatable, Hashable {
     public var modificationDate: Date?
     public var size: Int
+    /// SHA-256 of the file's bytes.
+    public var contentHash: Data
 
-    public init(modificationDate: Date?, size: Int) {
+    public init(modificationDate: Date?, size: Int, contentHash: Data) {
         self.modificationDate = modificationDate
         self.size = size
+        self.contentHash = contentHash
+    }
+
+    public init(of data: Data, modificationDate: Date?) {
+        self.init(modificationDate: modificationDate, size: data.count, contentHash: Data(SHA256.hash(data: data)))
     }
 }
 
@@ -27,7 +39,8 @@ public protocol DatabaseFile: Sendable {
     var displayName: String { get }
     func read() async throws(FileError) -> (data: Data, version: FileVersion)
     /// Writes atomically, failing with `.changedOnDisk` when the file's
-    /// current version isn't `expected`. Returns the new version.
+    /// current content isn't the `expected` version's (compared by content
+    /// hash). Returns the new version.
     func write(_ data: Data, expecting expected: FileVersion?) async throws(FileError) -> FileVersion
 }
 
@@ -46,7 +59,7 @@ public struct LocalDatabaseFile: DatabaseFile {
         guard FileManager.default.fileExists(atPath: url.path) else { throw .notFound }
         do {
             let data = try Data(contentsOf: url)
-            return (data, try currentVersion())
+            return (data, FileVersion(of: data, modificationDate: try modificationDate()))
         } catch let error as FileError {
             throw error
         } catch {
@@ -56,24 +69,20 @@ public struct LocalDatabaseFile: DatabaseFile {
 
     public func write(_ data: Data, expecting expected: FileVersion?) async throws(FileError) -> FileVersion {
         if let expected, FileManager.default.fileExists(atPath: url.path) {
-            let current = try currentVersion()
-            guard current == expected else { throw .changedOnDisk(current: current) }
+            let current = try await read().version
+            guard current.contentHash == expected.contentHash else { throw .changedOnDisk(current: current) }
         }
         do {
             try data.write(to: url, options: .atomic)
         } catch {
             throw .ioFailure(error.localizedDescription)
         }
-        return try currentVersion()
+        return FileVersion(of: data, modificationDate: try modificationDate())
     }
 
-    func currentVersion() throws(FileError) -> FileVersion {
+    private func modificationDate() throws(FileError) -> Date? {
         do {
-            let attributes = try FileManager.default.attributesOfItem(atPath: url.path)
-            return FileVersion(
-                modificationDate: attributes[.modificationDate] as? Date,
-                size: (attributes[.size] as? NSNumber)?.intValue ?? 0
-            )
+            return try FileManager.default.attributesOfItem(atPath: url.path)[.modificationDate] as? Date
         } catch {
             throw .notFound
         }
