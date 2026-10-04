@@ -15,6 +15,7 @@ let package = Package(
         .library(name: "KPModel", targets: ["KPModel"]),
         .library(name: "KPMerge", targets: ["KPMerge"]),
         .library(name: "KPSearch", targets: ["KPSearch"]),
+        .library(name: "KPSession", targets: ["KPSession"]),
         .executable(name: "kpbench", targets: ["kpbench"]),
     ],
     dependencies: [
@@ -39,6 +40,11 @@ let package = Package(
         .testTarget(name: "KPMergeTests", dependencies: ["KPMerge", "KPModel"]),
         .target(name: "KPSearch", dependencies: ["KPModel", "KPObservability"]),
         .testTarget(name: "KPSearchTests", dependencies: ["KPSearch", "KPModel"]),
+        .target(
+            name: "KPSession",
+            dependencies: ["KPModel", "KPMerge", "KPSearch", "KPObservability", "KPAppState"]
+        ),
+        .testTarget(name: "KPSessionTests", dependencies: ["KPSession", "KPModel", "KPMerge"]),
         .testTarget(name: "KPAppStateTests", dependencies: ["KPAppState"]),
         .testTarget(name: "KPObservabilityTests", dependencies: ["KPObservability"]),
         .testTarget(name: "KPOTPTests", dependencies: ["KPOTP"]),
