@@ -193,3 +193,15 @@ struct GroupingDropTarget: ViewModifier {
         withAnimation(.snappy) { isArmed = false }
     }
 }
+
+/// What follows the finger while dragging an entry or group.
+struct DragPreview: View {
+    let title: String
+    let systemImage: String
+
+    var body: some View {
+        Label(title, systemImage: systemImage)
+            .padding(8)
+            .background(.regularMaterial, in: Capsule())
+    }
+}

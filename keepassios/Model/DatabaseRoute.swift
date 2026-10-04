@@ -12,7 +12,7 @@ nonisolated enum DatabaseRoute: Hashable {
 
 /// An entry or group being dragged to another group.
 nonisolated struct DraggedItem: Codable, Hashable, Transferable {
-    enum Kind: String, Codable {
+    nonisolated enum Kind: String, Codable {
         case entry
         case group
     }

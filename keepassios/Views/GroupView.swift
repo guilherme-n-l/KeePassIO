@@ -1,3 +1,4 @@
+import KPAppState
 import KPMerge
 import KPModel
 import KPOTP
@@ -54,23 +55,7 @@ struct GroupView: View {
                 if !group.groups.isEmpty {
                     Section("Groups") {
                         ForEach(group.groups) { child in
-                            NavigationLink(value: DatabaseRoute.group(database: databaseID, group: child.id)) {
-                                Label {
-                                    Text(child.name)
-                                } icon: {
-                                    ItemIcon(group: child, in: session.database)
-                                }
-                            }
-                            .draggable(DraggedItem(kind: .group, id: child.id)) {
-                                Label(child.name, systemImage: "folder")
-                                    .padding(8)
-                                    .background(.regularMaterial, in: Capsule())
-                            }
-                            .dropDestination(for: DraggedItem.self) { items, _ in
-                                move(items, into: child.id)
-                            }
-                            .contextMenu { groupActions(for: child) }
-                            .accessibilityIdentifier("group.\(child.name)")
+                            groupRow(child)
                         }
                         .onDelete { offsets in
                             for index in offsets {
@@ -85,17 +70,7 @@ struct GroupView: View {
                             .foregroundStyle(.secondary)
                     }
                     ForEach(group.entries) { entry in
-                        NavigationLink(value: DatabaseRoute.entry(database: databaseID, entry: entry.id)) {
-                            EntryRow(entry: entry, database: session.database)
-                        }
-                        .draggable(DraggedItem(kind: .entry, id: entry.id)) {
-                            Label(entry.title, systemImage: "key")
-                                .padding(8)
-                                .background(.regularMaterial, in: Capsule())
-                        }
-                        .modifier(GroupingDropTarget { items in proposeGroup(of: items, with: entry) })
-                        .contextMenu { quickActions(for: entry) }
-                        .accessibilityIdentifier("entry.\(entry.title)")
+                        entryRow(entry)
                     }
                     .onDelete { offsets in
                         for index in offsets {
@@ -257,6 +232,40 @@ struct GroupView: View {
 }
 
 extension GroupView {
+    /// A subgroup: tap to open, drag to move, drop entries or groups on it
+    /// to move them in.
+    private func groupRow(_ child: KPModel.Group) -> some View {
+        NavigationLink(value: DatabaseRoute.group(database: databaseID, group: child.id)) {
+            Label {
+                Text(child.name)
+            } icon: {
+                ItemIcon(group: child, in: session.database)
+            }
+        }
+        .draggable(DraggedItem(kind: .group, id: child.id)) {
+            DragPreview(title: child.name, systemImage: "folder")
+        }
+        .dropDestination(for: DraggedItem.self) { items, _ in
+            move(items, into: child.id)
+        }
+        .contextMenu { groupActions(for: child) }
+        .accessibilityIdentifier("group.\(child.name)")
+    }
+
+    /// An entry: tap to open, drag to move, hold another entry over it to
+    /// group the two.
+    private func entryRow(_ entry: Entry) -> some View {
+        NavigationLink(value: DatabaseRoute.entry(database: databaseID, entry: entry.id)) {
+            EntryRow(entry: entry, database: session.database)
+        }
+        .draggable(DraggedItem(kind: .entry, id: entry.id)) {
+            DragPreview(title: entry.title, systemImage: "key")
+        }
+        .modifier(GroupingDropTarget { items in proposeGroup(of: items, with: entry) })
+        .contextMenu { quickActions(for: entry) }
+        .accessibilityIdentifier("entry.\(entry.title)")
+    }
+
     /// Asks for a name for a new group holding `entry` and the dragged
     /// entries. Groups dropped on an entry are ignored.
     private func proposeGroup(of items: [DraggedItem], with entry: Entry) -> Bool {
@@ -351,7 +360,8 @@ extension GroupView {
     }
 
     private func downloadMissingIcons() {
-        let ids = session.database?.allEntries.filter { $0.customIconID == nil && !$0.url.isEmpty }.map(\.id) ?? []
+        let entries = session.database?.activeEntries ?? []
+        let ids = entries.filter { $0.customIconID == nil && !$0.url.isEmpty }.map(\.id)
         isDownloadingIcons = true
         Task {
             await model.downloadIcons(for: ids, in: session)
