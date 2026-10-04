@@ -312,7 +312,7 @@ There are three possible verdicts:
 ## 12. Immediate next steps (M0)
 1. Clean up the template project:
    - Set the deployment target to 18.0 (currently 26.5) and Swift to 6 (currently 5.0).
-   - Remove SwiftData entirely: delete `Item.swift`, the `ModelContainer` in `keepassiosApp.swift`, and the `@Query`/`modelContext` use in `ContentView.swift`; drop the SwiftData import from the test targets.
+   - Remove SwiftData entirely: delete `Item.swift`, the `ModelContainer` in `keepassiosApp.swift`, and the `@Query`/`modelContext` use in `ContentView.swift`.
    - Add an App Group and Keychain access group.
 2. Add `Packages/KeePasCore` (KPModel, KPObservability, kpbench) with KDBXKit as a dependency, plus `linux.yml` and `macos.yml`.
 3. Run the KDBXKit spike (9b) and record the verdict in `docs/adr/0001-kdbx-library.md`.
