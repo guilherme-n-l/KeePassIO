@@ -8,9 +8,10 @@ import UniformTypeIdentifiers
 /// database.
 struct UnlockView: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.scenePhase) private var scenePhase
     let session: DatabaseSession
     let reference: DatabaseReference
-    private var name: String { reference.displayName }
+    private var name: String { reference.name }
     @State private var rememberWithBiometrics = false
     @State private var password = ""
     @State private var keyFileData: Data?
@@ -18,9 +19,28 @@ struct UnlockView: View {
     @State private var isPickingKeyFile = false
     @State private var keyFileError: String?
     @FocusState private var passwordFocused: Bool
+    /// Whether a biometric quick-unlock key is stored for this database.
+    @State private var canQuickUnlock = false
+    /// Set once Face ID was offered automatically, so cancelling it (which
+    /// makes the app inactive and active again) doesn't ask again until
+    /// the app has been in the background.
+    @State private var didOfferQuickUnlock = false
+    @State private var isQuickUnlocking = false
 
     var body: some View {
         Form {
+            if canQuickUnlock {
+                Section {
+                    Button {
+                        Task { await quickUnlock() }
+                    } label: {
+                        Label("Unlock with \(QuickUnlock.biometryName)", systemImage: "faceid")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .disabled(isQuickUnlocking || session.state == .unlocking)
+                    .accessibilityIdentifier("unlock.biometrics")
+                }
+            }
             Section {
                 SecureField("Master Password", text: $password)
                     .textContentType(.password)
@@ -75,9 +95,27 @@ struct UnlockView: View {
         .navigationTitle(name)
         .onAppear {
             rememberWithBiometrics = reference.quickUnlockEnabled
-            passwordFocused = true
+            canQuickUnlock = reference.quickUnlockEnabled && QuickUnlock.hasKey(for: reference.id)
+            // With Face ID about to be offered, raising the keyboard first
+            // would only flash it on screen.
+            passwordFocused = !canQuickUnlock || model.lockedByUser.contains(reference.id)
         }
-        .task { await tryQuickUnlock() }
+        .onDisappear {
+            model.lockedByUser.remove(reference.id)
+        }
+        .task { await offerQuickUnlock() }
+        .onChange(of: scenePhase) { _, phase in
+            switch phase {
+            case .background:
+                didOfferQuickUnlock = false
+                // Coming back after the app locked counts as a fresh visit.
+                model.lockedByUser.remove(reference.id)
+            case .active:
+                Task { await offerQuickUnlock() }
+            default:
+                break
+            }
+        }
         .fileImporter(isPresented: $isPickingKeyFile, allowedContentTypes: [.data]) { result in
             guard case .success(let url) = result else { return }
             Task { await loadKeyFile(from: url) }
@@ -129,17 +167,39 @@ struct UnlockView: View {
         }
     }
 
-    /// Unlocks with biometrics when a quick-unlock key is stored.
-    private func tryQuickUnlock() async {
-        guard reference.quickUnlockEnabled, session.state == .locked, QuickUnlock.hasKey(for: reference.id) else {
+    /// Asks for biometrics on its own when the database is opened, but
+    /// not right after the user locked it: then the user taps the button.
+    private func offerQuickUnlock() async {
+        guard canQuickUnlock, !didOfferQuickUnlock, scenePhase == .active,
+            !model.lockedByUser.contains(reference.id)
+        else { return }
+        didOfferQuickUnlock = true
+        await quickUnlock()
+    }
+
+    /// Unlocks with the key stored behind biometrics.
+    private func quickUnlock() async {
+        guard canQuickUnlock, !isQuickUnlocking, session.state != .unlocked, session.state != .unlocking else {
             return
         }
+        isQuickUnlocking = true
+        defer { isQuickUnlocking = false }
         let reason = String(localized: "Unlock \(name)")
-        guard let key = try? await QuickUnlock.retrieve(for: reference.id, reason: reason) else { return }
-        await session.unlock(with: key)
-        if case .failed = session.state {
-            // The stored key no longer works (the master key changed).
-            QuickUnlock.remove(for: reference.id)
+        do {
+            let key = try await QuickUnlock.retrieve(for: reference.id, reason: reason)
+            await session.unlock(with: key)
+            if case .failed = session.state {
+                // The stored key no longer works (the master key changed).
+                QuickUnlock.remove(for: reference.id)
+                canQuickUnlock = false
+                passwordFocused = true
+            }
+        } catch QuickUnlock.Failure.cancelled {
+            passwordFocused = true
+        } catch {
+            // Expired or removed: the password is needed again.
+            canQuickUnlock = false
+            passwordFocused = true
         }
     }
 }

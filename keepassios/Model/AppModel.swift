@@ -18,6 +18,10 @@ final class AppModel {
     /// Set by the quick-create intent; the UI shows the quick-create sheet
     /// (after unlocking) when it is true.
     var quickCreateRequested = false
+    /// Databases the user locked with the Lock button. Their unlock screen
+    /// waits for the user instead of asking for Face ID straight away,
+    /// until the user leaves it.
+    var lockedByUser: Set<UUID> = []
 
     private let store: AppStateStore
     let codec: any DatabaseCodec
@@ -137,6 +141,55 @@ final class AppModel {
                     state.databases[index].quickUnlockEnabled = enabled
                 }
             }) ?? state
+    }
+
+    /// Locks a database because the user asked to.
+    func lock(_ session: DatabaseSession) {
+        if let id = sessions.first(where: { $0.value === session })?.key {
+            lockedByUser.insert(id)
+        }
+        session.lock()
+    }
+
+    func rename(_ id: UUID, to alias: String) async {
+        let trimmed = alias.trimmingCharacters(in: .whitespacesAndNewlines)
+        state =
+            (try? await store.update { state in
+                if let index = state.databases.firstIndex(where: { $0.id == id }) {
+                    state.databases[index].alias = trimmed.isEmpty ? nil : trimmed
+                }
+            }) ?? state
+    }
+
+    func setQuickCreateDatabase(_ id: UUID?) async {
+        var settings = settings
+        settings.quickCreateDatabaseID = id
+        await updateSettings(settings)
+    }
+
+    func forgetQuickUnlock(for id: UUID) async {
+        QuickUnlock.remove(for: id)
+        await setQuickUnlock(false, for: id)
+    }
+
+    func isUnlocked(_ id: UUID) -> Bool {
+        sessions[id]?.state == .unlocked
+    }
+
+    /// Downloads website icons for the given entries that have a URL and
+    /// no custom icon yet. Returns how many icons were set.
+    @discardableResult
+    func downloadIcons(for entryIDs: [UUID], in session: DatabaseSession) async -> Int {
+        guard settings.mayDownloadFavicons else { return 0 }
+        var count = 0
+        for id in entryIDs {
+            guard let entry = session.database?.entry(withID: id), !entry.url.isEmpty else { continue }
+            guard let png = await WebsiteIcon.fetch(for: entry.url) else { continue }
+            if (try? session.setCustomIcon(png, forEntry: id)) != nil {
+                count += 1
+            }
+        }
+        return count
     }
 
     func lockAll() {

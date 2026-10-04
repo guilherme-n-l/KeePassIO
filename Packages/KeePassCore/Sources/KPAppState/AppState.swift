@@ -35,8 +35,10 @@ public struct AppState: Codable, Equatable, Sendable {
 /// security-scoped bookmark.
 public struct DatabaseReference: Codable, Equatable, Sendable, Identifiable {
     public var id: UUID
-    /// The file name without extension, shown in the library.
+    /// The file name without extension.
     public var displayName: String
+    /// A name the user chose for the library instead of the file name.
+    public var alias: String?
     /// Security-scoped bookmark to the original file (opaque outside Apple
     /// platforms).
     public var bookmark: Data
@@ -56,10 +58,12 @@ public struct DatabaseReference: Codable, Equatable, Sendable, Identifiable {
         lastOpened: Date? = nil,
         pendingSync: Bool = false,
         quickUnlockEnabled: Bool = false,
-        keyFileBookmark: Data? = nil
+        keyFileBookmark: Data? = nil,
+        alias: String? = nil
     ) {
         self.id = id
         self.displayName = displayName
+        self.alias = alias
         self.bookmark = bookmark
         self.lastOpened = lastOpened
         self.pendingSync = pendingSync
@@ -76,6 +80,13 @@ public struct DatabaseReference: Codable, Equatable, Sendable, Identifiable {
         pendingSync = try container.decodeIfPresent(Bool.self, forKey: .pendingSync) ?? false
         quickUnlockEnabled = try container.decodeIfPresent(Bool.self, forKey: .quickUnlockEnabled) ?? false
         keyFileBookmark = try container.decodeIfPresent(Data.self, forKey: .keyFileBookmark)
+        alias = try container.decodeIfPresent(String.self, forKey: .alias)
+    }
+
+    /// The name shown to the user: the alias if set, else the file name.
+    public var name: String {
+        guard let alias, !alias.trimmingCharacters(in: .whitespaces).isEmpty else { return displayName }
+        return alias
     }
 }
 
@@ -83,8 +94,9 @@ public struct DatabaseReference: Codable, Equatable, Sendable, Identifiable {
 /// defaults for fields a file doesn't have, so adding a setting never
 /// needs a version bump.
 public struct Settings: Codable, Equatable, Sendable {
-    /// Seconds in the background or idle before the database locks.
-    public var autoLockSeconds: Int = 120
+    /// Seconds in the background or idle before the database locks; 0
+    /// locks as soon as the app leaves the screen.
+    public var autoLockSeconds: Int = 0
     /// Seconds before a copied password or code is cleared from the
     /// clipboard.
     public var clipboardClearSeconds: Int = 30

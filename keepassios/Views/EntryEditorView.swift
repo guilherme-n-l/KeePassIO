@@ -6,6 +6,7 @@ import SwiftUI
 /// recorded in history) when the user taps Done.
 struct EntryEditorView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(AppModel.self) private var model
     let session: DatabaseSession
     @State var entry: Entry
     let isNew: Bool
@@ -139,10 +140,17 @@ struct EntryEditorView: View {
     private func commit() {
         entry.password = SecretString(password)
         do {
+            let previousURL = session.database?.entry(withID: entry.id)?.url
             if isNew {
                 try session.addEntry(entry, to: groupID)
             } else {
                 try session.updateEntry(entry)
+            }
+            if entry.customIconID == nil || (previousURL != nil && previousURL != entry.url), !entry.url.isEmpty {
+                // Runs after the sheet closes; does nothing unless website
+                // icons are turned on in Settings.
+                let (model, session, id) = (model, session, entry.id)
+                Task { await model.downloadIcons(for: [id], in: session) }
             }
             dismiss()
         } catch {

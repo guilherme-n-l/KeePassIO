@@ -165,6 +165,20 @@ public final class DatabaseSession {
         try edit { database in database.emptyRecycleBin(at: now) }
     }
 
+    /// Sets an entry's custom icon (PNG data), reusing an identical icon
+    /// already in the database so repeated downloads don't pile up copies.
+    public func setCustomIcon(_ imageData: Data, forEntry id: UUID) throws(SessionError) {
+        let now = clock()
+        try edit { database in
+            guard var entry = database.entry(withID: id) else { throw EditError.entryNotFound(id) }
+            let iconID =
+                database.meta.customIcons.first { $0.value == imageData }?.key ?? UUID()
+            database.meta.customIcons[iconID] = imageData
+            entry.customIconID = iconID
+            try database.update(entry, at: now)
+        }
+    }
+
     /// Creates an entry stamped with the current time.
     public func newEntry(title: String = "", userName: String = "", password: SecretString = .empty) -> Entry {
         var entry = Entry(times: Times(creation: clock()))

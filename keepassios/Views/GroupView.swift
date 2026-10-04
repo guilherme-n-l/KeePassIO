@@ -1,5 +1,6 @@
 import KPMerge
 import KPModel
+import KPOTP
 import KPSearch
 import KPSession
 import SwiftUI
@@ -7,15 +8,19 @@ import SwiftUI
 /// The contents of one group, with search over the whole database.
 struct GroupView: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.openURL) private var openURL
     let session: DatabaseSession
     let groupID: UUID
     var isRoot = false
 
     @State private var query = ""
     @State private var editingEntry: Entry?
+    @State private var editingExistingEntry: Entry?
+    @State private var isDownloadingIcons = false
     @State private var isAddingGroup = false
     @State private var newGroupName = ""
     @State private var saveError: String?
+    @State private var copyCount = 0
 
     private var group: KPModel.Group? { session.database?.group(withID: groupID) }
 
@@ -30,10 +35,11 @@ struct GroupView: View {
                             NavigationLink {
                                 GroupView(session: session, groupID: child.id)
                             } label: {
-                                Label(
-                                    child.name,
-                                    systemImage: child.id == session.database?.meta.recycleBinID ? "trash" : "folder"
-                                )
+                                Label {
+                                    Text(child.name)
+                                } icon: {
+                                    ItemIcon(group: child, in: session.database)
+                                }
                             }
                             .accessibilityIdentifier("group.\(child.name)")
                         }
@@ -53,8 +59,9 @@ struct GroupView: View {
                         NavigationLink {
                             EntryDetailView(session: session, entryID: entry.id)
                         } label: {
-                            EntryRow(title: entry.title, userName: entry.userName)
+                            EntryRow(entry: entry, database: session.database)
                         }
+                        .contextMenu { quickActions(for: entry) }
                         .accessibilityIdentifier("entry.\(entry.title)")
                     }
                     .onDelete { offsets in
@@ -73,6 +80,12 @@ struct GroupView: View {
                 EntryEditorView(session: session, entry: entry, isNew: true, groupID: groupID)
             }
         }
+        .sheet(item: $editingExistingEntry) { entry in
+            NavigationStack {
+                EntryEditorView(session: session, entry: entry, isNew: false, groupID: nil)
+            }
+        }
+        .sensoryFeedback(.success, trigger: copyCount)
         .alert("New Group", isPresented: $isAddingGroup) {
             TextField("Name", text: $newGroupName)
                 .accessibilityIdentifier("newGroup.name")
@@ -123,7 +136,14 @@ struct GroupView: View {
             NavigationLink {
                 EntryDetailView(session: session, entryID: hit.entryID)
             } label: {
-                EntryRow(title: hit.title, userName: hit.userName, groupName: hit.groupName)
+                if let entry = session.database?.entry(withID: hit.entryID) {
+                    EntryRow(entry: entry, database: session.database, groupName: hit.groupName)
+                }
+            }
+            .contextMenu {
+                if let entry = session.database?.entry(withID: hit.entryID) {
+                    quickActions(for: entry)
+                }
             }
             .accessibilityIdentifier("search.\(hit.title)")
         }
@@ -140,6 +160,12 @@ struct GroupView: View {
                     isAddingGroup = true
                 }
                 .accessibilityIdentifier("group.newGroup")
+                if model.settings.mayDownloadFavicons {
+                    Button("Download Website Icons", systemImage: "photo.badge.arrow.down") {
+                        downloadMissingIcons()
+                    }
+                    .disabled(isDownloadingIcons)
+                }
             } label: {
                 Label("Add", systemImage: "plus")
             }
@@ -171,7 +197,7 @@ struct GroupView: View {
             }
             ToolbarItem(placement: .topBarTrailing) {
                 Button {
-                    session.lock()
+                    model.lock(session)
                 } label: {
                     Label("Lock", systemImage: "lock")
                 }
@@ -181,12 +207,68 @@ struct GroupView: View {
     }
 }
 
+extension GroupView {
+    /// The long-press menu of an entry.
+    @ViewBuilder
+    func quickActions(for entry: Entry) -> some View {
+        if !entry.userName.isEmpty {
+            Button("Copy User Name", systemImage: "person") { copy(entry.userName, sensitive: false) }
+        }
+        if !entry.password.isEmpty {
+            Button("Copy Password", systemImage: "key") { copy(entry.password.reveal(), sensitive: true) }
+                .accessibilityIdentifier("entryMenu.copyPassword")
+        }
+        if let otp = try? OTP(fields: entry.fields.mapValues { $0.reveal() }) {
+            Button("Copy One-Time Code", systemImage: "clock.badge.checkmark") {
+                copy(otp.code(at: Date()), sensitive: true)
+            }
+        }
+        if let url = WebsiteIcon.openableURL(for: entry.url) {
+            Button("Open Website", systemImage: "safari") { openURL(url) }
+        }
+        Divider()
+        Button("Edit", systemImage: "pencil") { editingExistingEntry = entry }
+        if model.settings.mayDownloadFavicons, !entry.url.isEmpty {
+            Button("Download Icon", systemImage: "photo.badge.arrow.down") {
+                Task { await model.downloadIcons(for: [entry.id], in: session) }
+            }
+        }
+        Button("Delete", systemImage: "trash", role: .destructive) {
+            try? session.deleteEntry(entry.id)
+        }
+    }
+
+    private func copy(_ value: String, sensitive: Bool) {
+        Clipboard.copy(value, sensitive: sensitive, clearAfter: model.settings.clipboardClearSeconds)
+        copyCount += 1
+    }
+
+    private func downloadMissingIcons() {
+        let ids = session.database?.allEntries.filter { $0.customIconID == nil && !$0.url.isEmpty }.map(\.id) ?? []
+        isDownloadingIcons = true
+        Task {
+            await model.downloadIcons(for: ids, in: session)
+            isDownloadingIcons = false
+        }
+    }
+}
+
 struct EntryRow: View {
-    let title: String
-    let userName: String
+    let entry: Entry
+    let database: Database?
     var groupName: String?
 
+    private var title: String { entry.title }
+    private var userName: String { entry.userName }
+
     var body: some View {
+        HStack(spacing: 12) {
+            ItemIcon(entry: entry, in: database)
+            details
+        }
+    }
+
+    private var details: some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(title.isEmpty ? String(localized: "Untitled") : title)
                 .font(.body)

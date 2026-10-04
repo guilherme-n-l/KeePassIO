@@ -17,7 +17,7 @@ struct AppStateStoreTests {
         let state = try await store.load()
         #expect(state == AppState())
         #expect(state.settings.networkAllowed == false)
-        #expect(state.settings.autoLockSeconds == 120)
+        #expect(state.settings.autoLockSeconds == 0)
     }
 
     @Test func updatesPersist() async throws {
@@ -58,6 +58,17 @@ struct AppStateStoreTests {
         #expect(state.settings.autoLockSeconds == 30)
         #expect(state.settings.clipboardClearSeconds == 30)
         #expect(state.settings.generator == GeneratorSettings())
+    }
+
+    @Test func aliasReplacesTheFileNameUntilCleared() async throws {
+        var reference = DatabaseReference(displayName: "Database", bookmark: Data())
+        #expect(reference.name == "Database")
+        reference.alias = "Default"
+        let aliased = reference
+        try await store.update { $0.databases.append(aliased) }
+        #expect(try await store.load().databases.first?.name == "Default")
+        reference.alias = "  "
+        #expect(reference.name == "Database")
     }
 
     @Test func refusesFilesFromNewerVersions() async throws {

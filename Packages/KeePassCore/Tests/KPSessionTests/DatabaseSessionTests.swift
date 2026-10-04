@@ -40,6 +40,26 @@ struct DatabaseSessionTests {
         #expect(reopened.database?.meta.name == "Personal")
     }
 
+    @Test func customIconsAreSharedBetweenEntries() async throws {
+        let session = makeSession()
+        try await session.create(name: "Personal", key: key)
+        let first = session.newEntry(title: "Mail")
+        let second = session.newEntry(title: "Calendar")
+        try session.addEntry(first)
+        try session.addEntry(second)
+        let png = Data([0x89, 0x50, 0x4E, 0x47])
+
+        try session.setCustomIcon(png, forEntry: first.id)
+        try session.setCustomIcon(png, forEntry: second.id)
+
+        let database = try #require(session.database)
+        #expect(database.meta.customIcons.count == 1)
+        let iconID = try #require(database.entry(withID: first.id)?.customIconID)
+        #expect(database.entry(withID: second.id)?.customIconID == iconID)
+        #expect(database.meta.customIcons[iconID] == png)
+        #expect(session.hasUnsavedChanges)
+    }
+
     @Test func wrongKeyFails() async throws {
         try await makeSession().create(name: "Personal", key: key)
         let session = makeSession()

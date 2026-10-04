@@ -123,6 +123,37 @@ final class KeePassIOSUITests: XCTestCase {
     }
 
     @MainActor
+    func testLongPressMenusRenameDatabaseAndCopyPassword() throws {
+        let driver = launch()
+        let app = driver.app
+        driver.createDatabase(named: "Database")
+        driver.addEntry(title: "Bank", userName: "carol", password: "bank-pass", url: "")
+
+        // Long-pressing an entry offers to copy its password.
+        app.buttons["entry.Bank"].press(forDuration: 1)
+        let copyPassword = app.buttons["entryMenu.copyPassword"]
+        XCTAssertTrue(copyPassword.waitForExistence(timeout: 5))
+        copyPassword.tap()
+
+        driver.save()
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+
+        // Long-pressing a database offers a rename; the alias replaces the
+        // file name in the library.
+        let row = app.buttons["library.database.Database"]
+        XCTAssertTrue(row.waitForExistence(timeout: 5))
+        row.press(forDuration: 1)
+        let rename = app.buttons["library.rename"]
+        XCTAssertTrue(rename.waitForExistence(timeout: 5))
+        rename.tap()
+        let field = app.textFields["library.rename.field"]
+        XCTAssertTrue(field.waitForExistence(timeout: 5))
+        field.typeText("Default")
+        app.buttons["library.rename.confirm"].tap()
+        XCTAssertTrue(app.buttons["library.database.Default"].waitForExistence(timeout: 5))
+    }
+
+    @MainActor
     func testLaunchPerformance() throws {
         measure(metrics: [XCTApplicationLaunchMetric()]) {
             XCUIApplication().launch()

@@ -1,0 +1,15 @@
+{
+  "images": [
+    {
+      "filename": "C55_Thumbnail.svg",
+      "idiom": "universal"
+    }
+  ],
+  "info": {
+    "author": "xcode",
+    "version": 1
+  },
+  "properties": {
+    "preserves-vector-representation": true
+  }
+}

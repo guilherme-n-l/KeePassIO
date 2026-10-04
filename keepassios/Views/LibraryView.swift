@@ -9,6 +9,9 @@ struct LibraryView: View {
     @State private var isCreating = false
     @State private var isShowingSettings = false
     @State private var path = NavigationPath()
+    @State private var renaming: DatabaseReference?
+    @State private var aliasText = ""
+    @State private var removing: DatabaseReference?
 
     var body: some View {
         NavigationStack(path: $path) {
@@ -29,9 +32,14 @@ struct LibraryView: View {
                     List {
                         ForEach(model.databases) { reference in
                             NavigationLink(value: reference.id) {
-                                DatabaseRow(reference: reference)
+                                DatabaseRow(
+                                    reference: reference,
+                                    isUnlocked: model.isUnlocked(reference.id),
+                                    isQuickCreateTarget: model.settings.quickCreateDatabaseID == reference.id
+                                )
                             }
-                            .accessibilityIdentifier("library.database.\(reference.displayName)")
+                            .contextMenu { quickActions(for: reference) }
+                            .accessibilityIdentifier("library.database.\(reference.name)")
                         }
                         .onDelete { offsets in
                             let ids = offsets.map { model.databases[$0].id }
@@ -83,6 +91,35 @@ struct LibraryView: View {
                 SettingsView()
             }
             .alert(
+                "Rename",
+                isPresented: Binding(get: { renaming != nil }, set: { if !$0 { renaming = nil } }),
+                presenting: renaming
+            ) { reference in
+                TextField(reference.displayName, text: $aliasText)
+                    .accessibilityIdentifier("library.rename.field")
+                Button("Cancel", role: .cancel) {}
+                Button("Rename") {
+                    Task { await model.rename(reference.id, to: aliasText) }
+                }
+                .accessibilityIdentifier("library.rename.confirm")
+            } message: { reference in
+                Text(
+                    "Shown in the library instead of the file name, \(reference.displayName). Leave empty to use the file name."
+                )
+            }
+            .confirmationDialog(
+                "Remove from Library?",
+                isPresented: Binding(get: { removing != nil }, set: { if !$0 { removing = nil } }),
+                titleVisibility: .visible,
+                presenting: removing
+            ) { reference in
+                Button("Remove \(reference.name)", role: .destructive) {
+                    Task { await model.removeDatabase(reference.id) }
+                }
+            } message: { _ in
+                Text("The file itself stays where it is in the Files app.")
+            }
+            .alert(
                 "Something Went Wrong",
                 isPresented: Binding(
                     get: { model.errorMessage != nil },
@@ -104,17 +141,80 @@ struct LibraryView: View {
     }
 }
 
+extension LibraryView {
+    /// The long-press menu of a database.
+    @ViewBuilder
+    private func quickActions(for reference: DatabaseReference) -> some View {
+        Button("Open", systemImage: "arrow.forward.circle") { path.append(reference.id) }
+        if model.isUnlocked(reference.id) {
+            Button("Lock", systemImage: "lock") {
+                model.lock(model.session(for: reference))
+            }
+        }
+        Button("Quick Create Entry", systemImage: "plus.circle") {
+            path = NavigationPath()
+            path.append(reference.id)
+            model.quickCreateRequested = true
+        }
+        Button("Rename", systemImage: "pencil") {
+            aliasText = reference.alias ?? ""
+            renaming = reference
+        }
+        .accessibilityIdentifier("library.rename")
+        if model.settings.quickCreateDatabaseID == reference.id {
+            Button("Stop Using for Quick Create", systemImage: "star.slash") {
+                Task { await model.setQuickCreateDatabase(nil) }
+            }
+        } else {
+            Button("Use for Quick Create", systemImage: "star") {
+                Task { await model.setQuickCreateDatabase(reference.id) }
+            }
+        }
+        if reference.quickUnlockEnabled {
+            Button("Forget \(QuickUnlock.biometryName)", systemImage: "faceid") {
+                Task { await model.forgetQuickUnlock(for: reference.id) }
+            }
+        }
+        Divider()
+        Button("Remove from Library", systemImage: "trash", role: .destructive) {
+            removing = reference
+        }
+    }
+}
+
 private struct DatabaseRow: View {
     let reference: DatabaseReference
+    let isUnlocked: Bool
+    let isQuickCreateTarget: Bool
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Label(reference.displayName, systemImage: "lock.shield")
-                .font(.headline)
-            if let lastOpened = reference.lastOpened {
-                Text("Opened \(lastOpened, format: .relative(presentation: .named))")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+        HStack(spacing: 12) {
+            Image(systemName: isUnlocked ? "lock.open.fill" : "lock.shield.fill")
+                .font(.title2)
+                .foregroundStyle(.tint)
+                .frame(width: 32)
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 4) {
+                    Text(reference.name)
+                        .font(.headline)
+                    if isQuickCreateTarget {
+                        Image(systemName: "star.fill")
+                            .font(.caption)
+                            .foregroundStyle(.yellow)
+                            .accessibilityLabel("Quick Create database")
+                    }
+                }
+                if reference.name != reference.displayName {
+                    Text(reference.displayName)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                if let lastOpened = reference.lastOpened {
+                    Text("Opened \(lastOpened, format: .relative(presentation: .named))")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
         }
     }
