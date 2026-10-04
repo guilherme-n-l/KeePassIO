@@ -46,6 +46,12 @@ if ! command -v shellcheck >/dev/null 2>&1; then
   pip install --quiet shellcheck-py
 fi
 
+# zlib headers are needed to build the vendored KDBXKit.
+if [[ ! -e /usr/include/zlib.h ]] && command -v apt-get >/dev/null 2>&1; then
+  echo "Installing zlib headers"
+  apt-get install -y -q zlib1g-dev >/dev/null
+fi
+
 if ! command -v bpftrace >/dev/null 2>&1 && command -v apt-get >/dev/null 2>&1; then
   echo "Installing bpftrace"
   apt-get install -y -q bpftrace >/dev/null

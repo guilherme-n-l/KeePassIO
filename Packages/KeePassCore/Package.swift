@@ -8,6 +8,14 @@ let package = Package(
         .macOS(.v15),
     ],
     products: [
+        // Everything the app links, as one product for the Xcode project.
+        .library(
+            name: "KeePassCore",
+            targets: [
+                "KPAppState", "KPGenerator", "KPMerge", "KPModel", "KPObservability", "KPOTP", "KPSearch",
+                "KPSession", "KPKDBX",
+            ]
+        ),
         .library(name: "KPObservability", targets: ["KPObservability"]),
         .library(name: "KPOTP", targets: ["KPOTP"]),
         .library(name: "KPGenerator", targets: ["KPGenerator"]),
@@ -16,11 +24,13 @@ let package = Package(
         .library(name: "KPMerge", targets: ["KPMerge"]),
         .library(name: "KPSearch", targets: ["KPSearch"]),
         .library(name: "KPSession", targets: ["KPSession"]),
+        .library(name: "KPKDBX", targets: ["KPKDBX"]),
         .executable(name: "kpbench", targets: ["kpbench"]),
     ],
     dependencies: [
         .package(url: "https://github.com/apple/swift-argument-parser.git", exact: "1.8.2"),
-        .package(url: "https://github.com/apple/swift-crypto.git", exact: "4.5.2"),
+        .package(url: "https://github.com/apple/swift-crypto.git", exact: "3.15.1"),
+        .package(path: "../../Vendor/KDBXKit"),
     ],
     targets: [
         .target(name: "KPObservability"),
@@ -45,6 +55,14 @@ let package = Package(
             dependencies: ["KPModel", "KPMerge", "KPSearch", "KPObservability", "KPAppState"]
         ),
         .testTarget(name: "KPSessionTests", dependencies: ["KPSession", "KPModel", "KPMerge"]),
+        .target(
+            name: "KPKDBX",
+            dependencies: [
+                "KPModel", "KPSession", "KPObservability",
+                .product(name: "KDBXKit", package: "KDBXKit"),
+            ]
+        ),
+        .testTarget(name: "KPKDBXTests", dependencies: ["KPKDBX", "KPModel", "KPSession", "KPOTP"]),
         .testTarget(name: "KPAppStateTests", dependencies: ["KPAppState"]),
         .testTarget(name: "KPObservabilityTests", dependencies: ["KPObservability"]),
         .testTarget(name: "KPOTPTests", dependencies: ["KPOTP"]),
