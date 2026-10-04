@@ -2,7 +2,7 @@
 
 A native SwiftUI KeePass client for iPhone and iPad (iOS/iPadOS only) that matches KeePassium's feature set with **no paywall**, fast entry creation, first-class database merge, and built-in performance observability.
 
-**Status:** planning. `main` holds the Xcode template project (`keepassios.xcodeproj`, SwiftData sample code). No product code yet.
+**Status (2026-10-04):** M0 done and much of M1-M3 is in place. Built: the core package (model, three-way merge with property tests, search, OTP, generator, app state, sessions with merge-on-save, KDBX 4 codec on a patched in-tree fork of KDBXKit, tracing with signposts/histograms/eBPF probes), the SwiftUI app (library, create/open, unlock, browse, search, entry detail with TOTP, editor with generator, settings, diagnostics, quick-create intent), and tests: unit, property, KeePassXC interop and end-to-end on Linux; XCUITest flows on the iOS simulator in macOS CI. Not yet: AutoFill and share extensions, biometric quick unlock, YubiKey, widgets, merge review per field, CSV import.
 
 ---
 
