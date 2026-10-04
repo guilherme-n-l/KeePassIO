@@ -8,7 +8,7 @@ struct KeePassIOSApp: App {
     @State private var activity = ActivityMonitor()
     @State private var autoFill = AutoFillSetup()
     @Environment(\.scenePhase) private var scenePhase
-    @State private var inactiveSince: Date?
+    @State private var backgroundedAt: Date?
 
     var body: some Scene {
         WindowGroup {
@@ -32,27 +32,28 @@ struct KeePassIOSApp: App {
         }
         .onChange(of: scenePhase) { _, phase in
             switch phase {
-            case .inactive, .background:
-                // "Immediately" locks as soon as the app stops being the
-                // active one (app switcher, Control Center, another app),
-                // like KeePassium.
-                if inactiveSince == nil {
-                    inactiveSince = Date()
+            case .inactive:
+                // Notification Center, Control Center, the app switcher and
+                // system prompts (Face ID included) only make the app
+                // inactive. It's still on screen, so nothing locks; the
+                // cover hides its contents meanwhile.
+                break
+            case .background:
+                // The app has left the screen (home, another app, screen
+                // lock). "Immediately" locks now; the timed settings count
+                // from here.
+                if backgroundedAt == nil {
+                    backgroundedAt = Date()
                 }
                 if model.settings.autoLockSeconds == 0 {
                     model.lockAll()
                 }
             case .active:
-                // Immediately already locked when the app went inactive.
-                // Checking again here would lock a database unlocked while
-                // inactive, which is exactly what Face ID does: its prompt
-                // makes the app inactive, so it would unlock and re-lock in
-                // a loop.
                 let timeout = model.settings.autoLockSeconds
-                if timeout > 0, let inactiveSince, Date().timeIntervalSince(inactiveSince) >= TimeInterval(timeout) {
+                if timeout > 0, let backgroundedAt, Date().timeIntervalSince(backgroundedAt) >= TimeInterval(timeout) {
                     model.lockAll()
                 }
-                inactiveSince = nil
+                backgroundedAt = nil
                 activity.recordActivity()
                 // The user may have just turned AutoFill on in Settings.
                 Task { await autoFill.refresh() }
