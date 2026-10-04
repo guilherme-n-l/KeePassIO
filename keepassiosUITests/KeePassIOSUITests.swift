@@ -5,18 +5,22 @@ import XCTest
 /// a cheap key derivation (-UITest), so tests don't depend on each other
 /// or on files on the device.
 final class KeePassIOSUITests: XCTestCase {
-    private let password = "correct horse battery"
-    private var app: XCUIApplication!
-
     override func setUpWithError() throws {
         continueAfterFailure = false
-        app = XCUIApplication()
+    }
+
+    /// Launches the app from an empty library.
+    @MainActor
+    private func launch() -> AppDriver {
+        let app = XCUIApplication()
         app.launchArguments = ["-UITest", "-UITestReset"]
         app.launch()
+        return AppDriver(app: app, test: self)
     }
 
     @MainActor
     func testLaunchShowsEmptyLibrary() throws {
+        let app = launch().app
         XCTAssertTrue(app.staticTexts["No Databases"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["library.open"].exists)
         XCTAssertTrue(app.buttons["library.new"].exists)
@@ -24,19 +28,26 @@ final class KeePassIOSUITests: XCTestCase {
 
     @MainActor
     func testCreateAddSaveLockUnlockSearchAndReveal() throws {
-        createDatabase(named: "Personal")
+        let driver = launch()
+        let app = driver.app
+        driver.createDatabase(named: "Personal")
 
-        addEntry(title: "Mail", userName: "alice@example.com", password: "hunter2-secret", url: "mail.example.com")
+        driver.addEntry(
+            title: "Mail",
+            userName: "alice@example.com",
+            password: "hunter2-secret",
+            url: "mail.example.com"
+        )
         XCTAssertTrue(app.buttons["entry.Mail"].waitForExistence(timeout: 5))
 
-        save()
-        lock()
+        driver.save()
+        driver.lock()
 
         // Wrong password first.
-        unlock(with: "not the password")
+        driver.unlock(with: "not the password")
         XCTAssertTrue(app.staticTexts["unlock.error"].waitForExistence(timeout: 10))
 
-        unlock(with: password)
+        driver.unlock(with: AppDriver.password)
         XCTAssertTrue(app.buttons["entry.Mail"].waitForExistence(timeout: 10))
 
         // Search across the database.
@@ -65,8 +76,10 @@ final class KeePassIOSUITests: XCTestCase {
 
     @MainActor
     func testGeneratedPasswordIsUsedAndEditKeepsHistory() throws {
-        createDatabase(named: "Generated")
-        openNewEntryForm()
+        let driver = launch()
+        let app = driver.app
+        driver.createDatabase(named: "Generated")
+        driver.openNewEntryForm()
 
         app.textFields["editor.title"].tap()
         app.textFields["editor.title"].typeText("Bank")
@@ -92,9 +105,11 @@ final class KeePassIOSUITests: XCTestCase {
 
     @MainActor
     func testDatabaseSurvivesRelaunch() throws {
-        createDatabase(named: "Persistent")
-        addEntry(title: "Router", userName: "admin", password: "router-pass", url: "")
-        save()
+        let driver = launch()
+        let app = driver.app
+        driver.createDatabase(named: "Persistent")
+        driver.addEntry(title: "Router", userName: "admin", password: "router-pass", url: "")
+        driver.save()
 
         // Relaunch without resetting: the library and file are still there.
         app.terminate()
@@ -103,7 +118,7 @@ final class KeePassIOSUITests: XCTestCase {
         let row = app.buttons["library.database.Persistent"]
         XCTAssertTrue(row.waitForExistence(timeout: 5))
         row.tap()
-        unlock(with: password)
+        driver.unlock(with: AppDriver.password)
         XCTAssertTrue(app.buttons["entry.Router"].waitForExistence(timeout: 10))
     }
 
@@ -113,10 +128,17 @@ final class KeePassIOSUITests: XCTestCase {
             XCUIApplication().launch()
         }
     }
+}
 
-    // MARK: Steps
+/// The steps the tests are made of, driving the app through the
+/// accessibility identifiers set in the views.
+@MainActor
+struct AppDriver {
+    static let password = "correct horse battery"
+    let app: XCUIApplication
+    let test: XCTestCase
 
-    private func createDatabase(named name: String) {
+    func createDatabase(named name: String) {
         let newButton = app.buttons["library.new"]
         XCTAssertTrue(newButton.waitForExistence(timeout: 5))
         newButton.tap()
@@ -127,16 +149,16 @@ final class KeePassIOSUITests: XCTestCase {
         nameField.clearText()
         nameField.typeText(name)
         app.secureTextFields["newDatabase.password"].tap()
-        app.secureTextFields["newDatabase.password"].typeText(password)
+        app.secureTextFields["newDatabase.password"].typeText(Self.password)
         app.secureTextFields["newDatabase.confirm"].tap()
-        app.secureTextFields["newDatabase.confirm"].typeText(password)
+        app.secureTextFields["newDatabase.confirm"].typeText(Self.password)
         app.buttons["newDatabase.create"].tap()
 
         // Creating opens the new, unlocked database.
         XCTAssertTrue(app.buttons["group.add"].waitForExistence(timeout: 15))
     }
 
-    private func openNewEntryForm() {
+    func openNewEntryForm() {
         app.buttons["group.add"].tap()
         let newEntry = app.buttons["group.newEntry"]
         XCTAssertTrue(newEntry.waitForExistence(timeout: 5))
@@ -144,7 +166,7 @@ final class KeePassIOSUITests: XCTestCase {
         XCTAssertTrue(app.textFields["editor.title"].waitForExistence(timeout: 5))
     }
 
-    private func addEntry(title: String, userName: String, password: String, url: String) {
+    func addEntry(title: String, userName: String, password: String, url: String) {
         openNewEntryForm()
         app.textFields["editor.title"].tap()
         app.textFields["editor.title"].typeText(title)
@@ -161,22 +183,22 @@ final class KeePassIOSUITests: XCTestCase {
         XCTAssertTrue(app.buttons["entry.\(title)"].waitForExistence(timeout: 5))
     }
 
-    private func save() {
+    func save() {
         let saveButton = app.buttons["database.save"]
         XCTAssertTrue(saveButton.waitForExistence(timeout: 5))
         saveButton.tap()
         // The button is disabled once there's nothing left to save.
         let saved = NSPredicate(format: "isEnabled == false")
-        expectation(for: saved, evaluatedWith: saveButton)
-        waitForExpectations(timeout: 15)
+        test.expectation(for: saved, evaluatedWith: saveButton)
+        test.waitForExpectations(timeout: 15)
     }
 
-    private func lock() {
+    func lock() {
         app.buttons["database.lock"].tap()
         XCTAssertTrue(app.secureTextFields["unlock.password"].waitForExistence(timeout: 5))
     }
 
-    private func unlock(with password: String) {
+    func unlock(with password: String) {
         let field = app.secureTextFields["unlock.password"]
         XCTAssertTrue(field.waitForExistence(timeout: 5))
         field.tap()
@@ -186,6 +208,7 @@ final class KeePassIOSUITests: XCTestCase {
     }
 }
 
+@MainActor
 extension XCUIElement {
     /// Deletes any text already in a text field.
     func clearText() {
