@@ -101,7 +101,7 @@ struct StaticReaderAPITests {
         do {
             _ = try KDBXReader.parse(data, unlockData: .init(masterPassword: "test"))
             Issue.record("Expected .unsupportedFormatVersion")
-        } catch let error as KDBXReader.Error {
+        } catch {
             if case let .unsupportedFormatVersion(major, minor) = error {
                 #expect(major == 3)
                 #expect(minor == 0)

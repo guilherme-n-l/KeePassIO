@@ -32,7 +32,7 @@ enum MainKey {
             var combined = masterSalt
             combined.append(contentsOf: ukPtr.bindMemory(to: UInt8.self))
             defer {
-                combined.withUnsafeMutableBytes { ptr in
+                _ = combined.withUnsafeMutableBytes { ptr in
                     ptr.initializeMemory(as: UInt8.self, repeating: 0)
                 }
             }

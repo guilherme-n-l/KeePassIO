@@ -18,7 +18,17 @@ import Testing
 /// lenient; KeePassXC's stricter parser bailed with "No root group".
 @Suite("KeePassXC interop — round-trip via the real binary")
 struct KeePassXCInteropTests {
-    static let cliPath = "/Applications/KeePassXC.app/Contents/MacOS/keepassxc-cli"
+    /// `KEEPASSXC_CLI` if set, else `keepassxc-cli` on `PATH` (Linux, Homebrew),
+    /// else the macOS app bundle.
+    static let cliPath: String = {
+        let environment = ProcessInfo.processInfo.environment
+        if let explicit = environment["KEEPASSXC_CLI"], !explicit.isEmpty { return explicit }
+        for directory in (environment["PATH"] ?? "").split(separator: ":") {
+            let candidate = "\(directory)/keepassxc-cli"
+            if FileManager.default.isExecutableFile(atPath: candidate) { return candidate }
+        }
+        return "/Applications/KeePassXC.app/Contents/MacOS/keepassxc-cli"
+    }()
     static var cliAvailable: Bool { FileManager.default.isExecutableFile(atPath: cliPath) }
 
     /// Enforcement hook for "the interop net actually ran". Every other test

@@ -14,7 +14,7 @@ Each patch is its own commit in this repository, touching only this directory; `
 
 | Patch | Why |
 |---|---|
-| _(none yet)_ | |
+| Test hygiene: find `keepassxc-cli` via `KEEPASSXC_CLI`/`PATH`; avoid a Swift 6.3 compiler crash in `StaticReaderAPITests`; discard two unused results | Interop tests only ran with the macOS app bundle; tests didn't compile with Swift 6.3.3; warnings |
 
 ## Updating
 

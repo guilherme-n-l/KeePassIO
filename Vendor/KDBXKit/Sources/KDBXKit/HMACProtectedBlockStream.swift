@@ -23,7 +23,7 @@ enum HMACProtectedBlockStream {
             combined.append(contentsOf: ukPtr.bindMemory(to: UInt8.self))
             combined.append(0x01)
             defer {
-                combined.withUnsafeMutableBytes { ptr in
+                _ = combined.withUnsafeMutableBytes { ptr in
                     ptr.initializeMemory(as: UInt8.self, repeating: 0)
                 }
             }
