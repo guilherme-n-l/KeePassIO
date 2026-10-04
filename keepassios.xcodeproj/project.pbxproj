@@ -6,6 +6,10 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		519955A13072B160004EB0D1 /* KeePassCore in Frameworks */ = {isa = PBXBuildFile; productRef = 519955A23072B160004EB0D1 /* KeePassCore */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		519955743072B159004EB0D1 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -52,6 +56,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				519955A13072B160004EB0D1 /* KeePassCore in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -112,6 +117,7 @@
 			);
 			name = keepassios;
 			packageProductDependencies = (
+				519955A23072B160004EB0D1 /* KeePassCore */,
 			);
 			productName = keepassios;
 			productReference = 519955643072B153004EB0D1 /* keepassios.app */;
@@ -195,6 +201,9 @@
 			);
 			mainGroup = 5199555B3072B153004EB0D1;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				519955A33072B160004EB0D1 /* XCLocalSwiftPackageReference "Packages/KeePassCore" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 519955653072B153004EB0D1 /* Products */;
 			projectDirPath = "";
@@ -401,7 +410,10 @@
 				ENABLE_PREVIEWS = YES;
 				CODE_SIGN_ENTITLEMENTS = keepassios/keepassios.entitlements;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "Config/keepassios-Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = KeePassIOS;
+				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
+				INFOPLIST_KEY_UIFileSharingEnabled = YES;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
@@ -436,7 +448,10 @@
 				ENABLE_PREVIEWS = YES;
 				CODE_SIGN_ENTITLEMENTS = keepassios/keepassios.entitlements;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "Config/keepassios-Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = KeePassIOS;
+				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
+				INFOPLIST_KEY_UIFileSharingEnabled = YES;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
@@ -584,6 +599,20 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		519955A33072B160004EB0D1 /* XCLocalSwiftPackageReference "Packages/KeePassCore" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = Packages/KeePassCore;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		519955A23072B160004EB0D1 /* KeePassCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = KeePassCore;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 5199555C3072B153004EB0D1 /* Project object */;
 }

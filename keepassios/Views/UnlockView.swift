@@ -1,0 +1,111 @@
+import KPModel
+import KPSession
+import SwiftUI
+import UniformTypeIdentifiers
+
+/// Asks for the master password (and optional key file) of a locked
+/// database.
+struct UnlockView: View {
+    let session: DatabaseSession
+    let name: String
+    @State private var password = ""
+    @State private var keyFileData: Data?
+    @State private var keyFileName: String?
+    @State private var isPickingKeyFile = false
+    @FocusState private var passwordFocused: Bool
+
+    var body: some View {
+        Form {
+            Section {
+                SecureField("Master Password", text: $password)
+                    .textContentType(.password)
+                    .focused($passwordFocused)
+                    .submitLabel(.go)
+                    .onSubmit(unlock)
+                    .accessibilityIdentifier("unlock.password")
+                Button {
+                    isPickingKeyFile = true
+                } label: {
+                    LabeledContent("Key File", value: keyFileName ?? String(localized: "None"))
+                }
+                if keyFileData != nil {
+                    Button("Remove Key File", role: .destructive) {
+                        keyFileData = nil
+                        keyFileName = nil
+                    }
+                }
+            } header: {
+                Text(name)
+            } footer: {
+                if case .failed(let error) = session.state {
+                    Text(error.userMessage)
+                        .foregroundStyle(.red)
+                        .accessibilityIdentifier("unlock.error")
+                }
+            }
+            Section {
+                Button(action: unlock) {
+                    HStack {
+                        Spacer()
+                        if session.state == .unlocking {
+                            ProgressView()
+                        } else {
+                            Text("Unlock").bold()
+                        }
+                        Spacer()
+                    }
+                }
+                .disabled(session.state == .unlocking || (password.isEmpty && keyFileData == nil))
+                .accessibilityIdentifier("unlock.submit")
+            }
+        }
+        .navigationTitle(name)
+        .onAppear { passwordFocused = true }
+        .fileImporter(isPresented: $isPickingKeyFile, allowedContentTypes: [.data]) { result in
+            guard case .success(let url) = result else { return }
+            let scoped = url.startAccessingSecurityScopedResource()
+            defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+            keyFileData = try? Data(contentsOf: url)
+            keyFileName = url.lastPathComponent
+        }
+    }
+
+    private func unlock() {
+        let key = CompositeKey(
+            password: password.isEmpty ? nil : SecretString(password),
+            keyFileData: keyFileData
+        )
+        Task {
+            await session.unlock(with: key)
+            if session.state == .unlocked {
+                password = ""
+            }
+        }
+    }
+}
+
+extension SessionError {
+    var userMessage: String {
+        switch self {
+        case .invalidKey:
+            String(localized: "The master password or key file is wrong.")
+        case .unsupportedFormat(let detail):
+            String(
+                localized:
+                    "This database format isn't supported (\(detail)). Open it in KeePassXC and change Database Settings → Security → Encryption → Database format to KDBX 4."
+            )
+        case .corrupted:
+            String(localized: "The file is damaged or isn't a KeePass database.")
+        case .keyDerivationTooExpensive:
+            String(localized: "This database needs more memory to unlock than is available here. Open it in the app.")
+        case .file(.notFound):
+            String(localized: "The file can't be found. It may have been moved or deleted.")
+        case .file(.accessDenied):
+            String(localized: "The app no longer has permission to open this file. Remove it and add it again.")
+        case .file, .other, .changedOnDisk:
+            String(localized: "The file couldn't be read.")
+        case .locked, .emptyKey, .edit:
+            String(localized: "Something went wrong. Try again.")
+        }
+    }
+}
