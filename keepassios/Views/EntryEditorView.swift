@@ -66,7 +66,7 @@ struct EntryEditorView: View {
                     Button {
                         isShowingGenerator = true
                     } label: {
-                        Image(systemName: "dice")
+                        Image(systemName: "wand.and.stars")
                     }
                     .buttonStyle(.borderless)
                     .accessibilityLabel("Generate Password")

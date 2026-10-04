@@ -110,7 +110,7 @@ struct NewAutoFillEntryView: View {
     }
 
     /// The password: empty at first, hidden unless the eye is on, with the
-    /// dice opening the generator.
+    /// wand opening the generator.
     private var passwordRow: some View {
         HStack(spacing: 12) {
             SwiftUI.Group {
@@ -133,7 +133,7 @@ struct NewAutoFillEntryView: View {
             Button {
                 isGenerating = true
             } label: {
-                Image(systemName: "dice")
+                Image(systemName: "wand.and.stars")
             }
             .buttonStyle(.borderless)
             .accessibilityLabel("Generate Password")

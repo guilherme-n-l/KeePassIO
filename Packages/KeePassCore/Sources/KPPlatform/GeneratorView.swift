@@ -74,7 +74,7 @@
                         .textSelection(.enabled)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .accessibilityIdentifier("generator.value")
-                    Button("Regenerate", systemImage: "dice", action: regenerate)
+                    Button("Regenerate", systemImage: "wand.and.stars", action: regenerate)
                         .accessibilityIdentifier("generator.regenerate")
                 } footer: {
                     if generated.isEmpty {
@@ -125,7 +125,9 @@
 
         @ViewBuilder private var passwordOptions: some View {
             Section("Length") {
-                HStack {
+                // A draggable slider with the value beside it, as in
+                // KeePassXC.
+                HStack(spacing: 12) {
                     Slider(
                         value: Binding(
                             get: { Double(settings.length) },
@@ -133,14 +135,18 @@
                         ),
                         in: 4...128,
                         step: 1
-                    )
+                    ) {
+                        Text("Length")
+                    } minimumValueLabel: {
+                        Text("4").font(.caption).foregroundStyle(.secondary)
+                    } maximumValueLabel: {
+                        Text("128").font(.caption).foregroundStyle(.secondary)
+                    }
+                    .accessibilityValue("\(settings.length) characters")
                     Text("\(settings.length)")
-                        .font(.body.monospacedDigit())
+                        .font(.body.monospacedDigit().weight(.semibold))
                         .frame(minWidth: 36, alignment: .trailing)
                 }
-                Stepper("Length", value: $settings.length, in: 4...128)
-                    .labelsHidden()
-                    .frame(maxWidth: .infinity, alignment: .trailing)
             }
             Section("Character Types") {
                 Toggle("Upper Case (A–Z)", isOn: $settings.includeUppercase)
