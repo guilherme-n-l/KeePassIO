@@ -61,10 +61,20 @@ if [[ "$(uname -s)" == "Linux" && -z "${LINUX_SOURCEKIT_LIB_PATH:-}" ]] && comma
   export LINUX_SOURCEKIT_LIB_PATH
 fi
 
-mapfile -t swift_files < <(list_files '*.swift')
-mapfile -t md_files < <(list_files '*.md')
-mapfile -t sh_files < <(list_files '*.sh'; list_files '.githooks/*')
-mapfile -t source_files < <(list_files '*.swift'; list_files '*.rs'; list_files '*.c'; list_files '*.h')
+# Plain read loops instead of mapfile: macOS ships bash 3.2, which lacks it.
+swift_files=()
+while IFS= read -r file; do swift_files+=("$file"); done < <(list_files '*.swift')
+md_files=()
+while IFS= read -r file; do md_files+=("$file"); done < <(list_files '*.md')
+sh_files=()
+while IFS= read -r file; do sh_files+=("$file"); done < <(list_files '*.sh'; list_files '.githooks/*')
+source_files=()
+while IFS= read -r file; do source_files+=("$file"); done < <(
+  list_files '*.swift'
+  list_files '*.rs'
+  list_files '*.c'
+  list_files '*.h'
+)
 
 if ((${#swift_files[@]})); then
   if ((fix)); then
@@ -83,7 +93,8 @@ if ((${#md_files[@]})); then
   if require npx Markdown; then
     md_args=()
     ((fix)) && md_args+=(--fix)
-    npx --yes markdownlint-cli2@0.23.3 "${md_args[@]}" "${md_files[@]}" \
+    # ${md_args[@]+...} keeps bash 3.2 from treating an empty array as unset.
+    npx --yes markdownlint-cli2@0.23.3 ${md_args[@]+"${md_args[@]}"} "${md_files[@]}" \
       || fail "markdownlint reported problems"
   fi
 fi
