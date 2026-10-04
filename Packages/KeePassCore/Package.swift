@@ -11,6 +11,7 @@ let package = Package(
         .library(name: "KPObservability", targets: ["KPObservability"]),
         .library(name: "KPOTP", targets: ["KPOTP"]),
         .library(name: "KPGenerator", targets: ["KPGenerator"]),
+        .library(name: "KPAppState", targets: ["KPAppState"]),
         .executable(name: "kpbench", targets: ["kpbench"]),
     ],
     dependencies: [
@@ -28,6 +29,8 @@ let package = Package(
         ),
         .target(name: "KPOTP", dependencies: [.product(name: "Crypto", package: "swift-crypto")]),
         .target(name: "KPGenerator", resources: [.copy("Resources/eff_large_wordlist.txt")]),
+        .target(name: "KPAppState"),
+        .testTarget(name: "KPAppStateTests", dependencies: ["KPAppState"]),
         .testTarget(name: "KPObservabilityTests", dependencies: ["KPObservability"]),
         .testTarget(name: "KPOTPTests", dependencies: ["KPOTP"]),
         .testTarget(name: "KPGeneratorTests", dependencies: ["KPGenerator"]),
