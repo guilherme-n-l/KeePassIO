@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Renders the app icon (light, dark and tinted variants) into the asset
 # catalog from Design/AppIcon.svg, with rsvg-convert (librsvg) and
-# ImageMagick.
+# ImageMagick, and writes the glyph alone as the in-app Logo image.
 #
 # The SVG has a green square (#rect1) behind a white glyph. Each variant
 # recolors those two and renders a fully opaque 1024x1024 PNG, as the App
@@ -33,4 +33,28 @@ render() {
 render "#4fa34f" "#ffffff" AppIcon.png
 render "#0e1c0e" "#5fbf5f" AppIcon-Dark.png
 render "#000000" "#ffffff" AppIcon-Tinted.png
-echo "Wrote $out"
+# The glyph without its square, as a vector template image: the app tints
+# it with the accent color (lock cover, empty library).
+logo="$root/keepassios/Assets.xcassets/Logo.imageset"
+mkdir -p "$logo"
+sed -e '/<rect/,/\/>/d' "$source_svg" >"$logo/Logo.svg"
+cat >"$logo/Contents.json" <<'JSON'
+{
+  "images" : [
+    {
+      "filename" : "Logo.svg",
+      "idiom" : "universal"
+    }
+  ],
+  "info" : {
+    "author" : "xcode",
+    "version" : 1
+  },
+  "properties" : {
+    "preserves-vector-representation" : true,
+    "template-rendering-intent" : "template"
+  }
+}
+JSON
+
+echo "Wrote $out and $logo"

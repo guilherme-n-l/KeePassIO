@@ -20,7 +20,14 @@ struct LibraryView: View {
             SwiftUI.Group {
                 if model.databases.isEmpty {
                     ContentUnavailableView {
-                        Label("No Databases", systemImage: "lock.rectangle.stack")
+                        Label {
+                            Text("No Databases")
+                        } icon: {
+                            Image("Logo")
+                                .resizable()
+                                .scaledToFit()
+                                .foregroundStyle(.tint)
+                        }
                     } description: {
                         Text("Open a KeePass database (.kdbx) from the Files app to get started.")
                     } actions: {
@@ -249,7 +256,7 @@ private struct DatabaseRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            Image(systemName: isUnlocked ? "lock.open.fill" : "lock.shield.fill")
+            Image(systemName: isUnlocked ? "lock.open.fill" : "lock.fill")
                 .font(.title2)
                 .foregroundStyle(.tint)
                 .frame(width: 32)

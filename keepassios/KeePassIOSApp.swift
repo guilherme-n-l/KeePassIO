@@ -17,7 +17,6 @@ struct KeePassIOSApp: App {
                 .environment(model)
                 .environment(diagnostics)
                 .environment(autoFill)
-                .tint(AccentColors.color(model.settings.accentColor))
                 .background(ActivityMonitor.Installer(monitor: activity))
                 .overlay {
                     // Hides the contents from the app switcher snapshot and
@@ -27,6 +26,8 @@ struct KeePassIOSApp: App {
                         PrivacyCover()
                     }
                 }
+                // Outside the cover, so the cover's logo takes the accent too.
+                .tint(AccentColors.color(model.settings.accentColor))
                 .onAppear { QuickCreateCenter.shared.attach(model) }
                 .task { await model.load() }
                 .task { await autoFill.refresh() }
@@ -84,8 +85,10 @@ private struct PrivacyCover: View {
     var body: some View {
         ZStack {
             Color(uiColor: .systemBackground)
-            Image(systemName: "lock.shield.fill")
-                .font(.system(size: 64))
+            Image("Logo")
+                .resizable()
+                .scaledToFit()
+                .frame(width: 160)
                 .foregroundStyle(.tint)
         }
         .ignoresSafeArea()
