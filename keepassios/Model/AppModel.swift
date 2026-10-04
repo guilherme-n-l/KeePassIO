@@ -2,6 +2,7 @@ import Foundation
 import KPAppState
 import KPKDBX
 import KPModel
+import KPPlatform
 import KPSession
 import Observation
 

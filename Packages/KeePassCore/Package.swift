@@ -13,7 +13,7 @@ let package = Package(
             name: "KeePassCore",
             targets: [
                 "KPAppState", "KPGenerator", "KPMerge", "KPModel", "KPObservability", "KPOTP", "KPSearch",
-                "KPSession", "KPKDBX",
+                "KPSession", "KPKDBX", "KPPlatform",
             ]
         ),
         .library(name: "KPObservability", targets: ["KPObservability"]),
@@ -25,6 +25,7 @@ let package = Package(
         .library(name: "KPSearch", targets: ["KPSearch"]),
         .library(name: "KPSession", targets: ["KPSession"]),
         .library(name: "KPKDBX", targets: ["KPKDBX"]),
+        .library(name: "KPPlatform", targets: ["KPPlatform"]),
         .executable(name: "kpbench", targets: ["kpbench"]),
     ],
     dependencies: [
@@ -72,6 +73,9 @@ let package = Package(
                 .product(name: "KDBXKit", package: "KDBXKit"),
             ]
         ),
+        // Apple-only services shared by the app and its extensions; empty on
+        // Linux.
+        .target(name: "KPPlatform", dependencies: ["KPModel", "KPSession"]),
         .testTarget(name: "KPAppStateTests", dependencies: ["KPAppState"]),
         .testTarget(name: "KPObservabilityTests", dependencies: ["KPObservability"]),
         .testTarget(name: "KPOTPTests", dependencies: ["KPOTP"]),

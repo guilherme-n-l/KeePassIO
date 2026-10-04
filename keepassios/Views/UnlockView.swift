@@ -1,5 +1,6 @@
 import KPAppState
 import KPModel
+import KPPlatform
 import KPSession
 import SwiftUI
 import UniformTypeIdentifiers
