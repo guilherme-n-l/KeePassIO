@@ -70,20 +70,7 @@ enum QuickUnlock {
 
     /// Asks for biometrics and returns the stored key.
     static func retrieve(for databaseID: UUID, reason: String) async throws -> CompositeKey {
-        let context = LAContext()
-        context.localizedReason = reason
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: databaseID.uuidString,
-            kSecReturnData as String: true,
-            kSecUseAuthenticationContext as String: context,
-        ]
-        let (status, data) = await Task.detached {
-            var result: CFTypeRef?
-            let status = SecItemCopyMatching(query as CFDictionary, &result)
-            return (status, result as? Data)
-        }.value
+        let (status, data) = await copyItem(account: databaseID.uuidString, reason: reason)
         switch status {
         case errSecSuccess: break
         case errSecUserCanceled, errSecAuthFailed: throw Failure.cancelled
@@ -101,6 +88,24 @@ enum QuickUnlock {
             password: stored.password.map { SecretString(bytes: Array($0)) },
             keyFileData: stored.keyFile
         )
+    }
+
+    /// Reads the Keychain item off the main actor: the call blocks until
+    /// the biometric prompt is answered.
+    @concurrent
+    private nonisolated static func copyItem(account: String, reason: String) async -> (OSStatus, Data?) {
+        let context = LAContext()
+        context.localizedReason = reason
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: "dev.guilhermenl.keepassios.quick-unlock",
+            kSecAttrAccount as String: account,
+            kSecReturnData as String: true,
+            kSecUseAuthenticationContext as String: context,
+        ]
+        var result: CFTypeRef?
+        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        return (status, result as? Data)
     }
 
     /// Whether a quick-unlock key is stored (without prompting).

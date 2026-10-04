@@ -16,7 +16,7 @@ struct GroupView: View {
     @State private var newGroupName = ""
     @State private var saveError: String?
 
-    private var group: Group? { session.database?.group(withID: groupID) }
+    private var group: KPModel.Group? { session.database?.group(withID: groupID) }
 
     var body: some View {
         List {
@@ -77,7 +77,7 @@ struct GroupView: View {
                 .accessibilityIdentifier("newGroup.name")
             Button("Cancel", role: .cancel) { newGroupName = "" }
             Button("Add") {
-                try? session.addGroup(Group(name: newGroupName), to: groupID)
+                try? session.addGroup(KPModel.Group(name: newGroupName), to: groupID)
                 newGroupName = ""
             }
         }

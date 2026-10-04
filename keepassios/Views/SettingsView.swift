@@ -64,7 +64,11 @@ struct SettingsView: View {
     private func setting<Value>(_ keyPath: WritableKeyPath<Settings, Value>) -> Binding<Value> {
         Binding(
             get: { model.settings[keyPath: keyPath] },
-            set: { newValue in Task { await model.updateSettings { $0[keyPath: keyPath] = newValue } } }
+            set: { newValue in
+                var settings = model.settings
+                settings[keyPath: keyPath] = newValue
+                Task { await model.updateSettings(settings) }
+            }
         )
     }
 }

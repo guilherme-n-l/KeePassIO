@@ -9,7 +9,7 @@ struct DatabaseContainerView: View {
 
     var body: some View {
         let session = model.session(for: reference)
-        Group {
+        SwiftUI.Group {
             if session.state == .unlocked, let database = session.database {
                 GroupView(session: session, groupID: database.root.id, isRoot: true)
             } else {

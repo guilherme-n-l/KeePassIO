@@ -59,7 +59,7 @@ public actor AppStateStore {
 
     /// Applies `change` to the current state on disk and saves the result.
     @discardableResult
-    public func update(_ change: (inout AppState) -> Void) throws -> AppState {
+    public func update(_ change: @Sendable (inout AppState) -> Void) throws -> AppState {
         var state = try load()
         change(&state)
         state.version = AppState.currentVersion

@@ -10,7 +10,10 @@ import Observation
 @Observable
 final class AppModel {
     private(set) var state = AppState()
-    private(set) var sessions: [UUID: DatabaseSession] = [:]
+    // Sessions are created lazily while views are being built, so changes
+    // to this dictionary must not trigger view updates themselves; each
+    // session is observable on its own.
+    @ObservationIgnored private(set) var sessions: [UUID: DatabaseSession] = [:]
     var errorMessage: String?
     /// Set by the quick-create intent; the UI shows the quick-create sheet
     /// (after unlocking) when it is true.
@@ -144,7 +147,7 @@ final class AppModel {
 
     // MARK: Settings
 
-    func updateSettings(_ change: @escaping (inout Settings) -> Void) async {
-        state = (try? await store.update { change(&$0.settings) }) ?? state
+    func updateSettings(_ settings: Settings) async {
+        state = (try? await store.update { $0.settings = settings }) ?? state
     }
 }

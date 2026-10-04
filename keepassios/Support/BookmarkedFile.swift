@@ -8,7 +8,10 @@ import KPSession
 /// extensions (iCloud Drive, Dropbox, ...) see consistent files and
 /// download them first when needed. Writes are atomic and check, by
 /// content hash, that the file is still the version that was read.
-struct BookmarkedFile: DatabaseFile {
+///
+/// Not main-actor isolated (the app's default): sessions call it from any
+/// context, and file coordination shouldn't run on the main thread.
+nonisolated struct BookmarkedFile: DatabaseFile {
     let bookmark: Data
     let displayName: String
 

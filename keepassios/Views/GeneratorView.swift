@@ -69,7 +69,9 @@ struct GeneratorView: View {
         }
         .onChange(of: settings) { _, newValue in
             regenerate()
-            Task { await model.updateSettings { $0.generator = newValue } }
+            var updated = model.settings
+            updated.generator = newValue
+            Task { await model.updateSettings(updated) }
         }
     }
 

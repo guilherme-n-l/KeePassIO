@@ -12,7 +12,7 @@ struct LibraryView: View {
 
     var body: some View {
         NavigationStack(path: $path) {
-            Group {
+            SwiftUI.Group {
                 if model.databases.isEmpty {
                     ContentUnavailableView {
                         Label("No Databases", systemImage: "lock.rectangle.stack")

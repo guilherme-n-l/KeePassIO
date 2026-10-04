@@ -4,7 +4,7 @@ import AppIntents
 /// Action Button and Control Center. It opens the app, which asks to
 /// unlock the default database before showing the new-entry form; nothing
 /// is written without unlocking.
-struct NewEntryIntent: AppIntent {
+nonisolated struct NewEntryIntent: AppIntent {
     static let title: LocalizedStringResource = "New KeePass Entry"
     static let description = IntentDescription("Creates a new entry in your default KeePass database.")
     static let openAppWhenRun = true
@@ -16,7 +16,7 @@ struct NewEntryIntent: AppIntent {
     }
 }
 
-struct KeePassShortcuts: AppShortcutsProvider {
+nonisolated struct KeePassShortcuts: AppShortcutsProvider {
     static var appShortcuts: [AppShortcut] {
         AppShortcut(
             intent: NewEntryIntent(),
