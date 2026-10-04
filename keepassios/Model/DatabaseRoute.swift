@@ -11,7 +11,7 @@ nonisolated enum DatabaseRoute: Hashable {
 }
 
 /// An entry or group being dragged to another group.
-nonisolated struct DraggedItem: Codable, Hashable, Transferable {
+nonisolated struct DraggedItem: Codable, Hashable, Identifiable, Transferable {
     nonisolated enum Kind: String, Codable {
         case entry
         case group
