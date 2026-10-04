@@ -23,6 +23,12 @@ jobs:
       - name: Install Swift, swift-format, SwiftLint, ShellCheck and bpftrace
         run: sudo scripts/setup-linux-toolchain.sh
 
+      - name: Install Nix (for nixfmt and the dev shell check)
+        uses: cachix/install-nix-action@13d8dd58da0234aa297dedd986986ccb8e7f3e24 # v31.11.1
+
+      - name: Check the Nix dev shell evaluates
+        run: nix develop --command true
+
       - name: Install KeePassXC for interop tests
         run: sudo apt-get install -y -q keepassxc
 

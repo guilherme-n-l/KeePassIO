@@ -4,6 +4,8 @@
 #   scripts/lint.sh            check all tracked files
 #   scripts/lint.sh --staged   check only files staged for commit
 #   scripts/lint.sh --fix      apply formatting fixes, then check
+#   scripts/lint.sh --skip-nix skip the Nix formatting check (for CI jobs
+#                              where another job already runs it)
 #
 # A check is skipped only when no file of its type is selected. If files of a
 # type are selected and the tool for them is missing, the script fails: no
@@ -14,10 +16,12 @@ cd "$(git rev-parse --show-toplevel)"
 
 mode="all"
 fix=0
+skip_nix=0
 for arg in "$@"; do
   case "$arg" in
     --staged) mode="staged" ;;
     --fix) fix=1 ;;
+    --skip-nix) skip_nix=1 ;;
     *) echo "unknown argument: $arg" >&2; exit 2 ;;
   esac
 done
@@ -68,6 +72,8 @@ md_files=()
 while IFS= read -r file; do md_files+=("$file"); done < <(list_files '*.md')
 sh_files=()
 while IFS= read -r file; do sh_files+=("$file"); done < <(list_files '*.sh'; list_files '.githooks/*')
+nix_files=()
+while IFS= read -r file; do nix_files+=("$file"); done < <(list_files '*.nix')
 source_files=()
 while IFS= read -r file; do source_files+=("$file"); done < <(
   list_files '*.swift'
@@ -97,6 +103,25 @@ if ((${#md_files[@]})); then
     npx --yes markdownlint-cli2@0.23.3 ${md_args[@]+"${md_args[@]}"} "${md_files[@]}" \
       || fail "markdownlint reported problems"
   fi
+fi
+
+# nixfmt comes from the dev shell (flake.nix); without it, run the pinned
+# one through Nix.
+nixfmt_cmd() {
+  if command -v nixfmt >/dev/null 2>&1; then
+    nixfmt "$@"
+  elif command -v nix >/dev/null 2>&1; then
+    nix --extra-experimental-features 'nix-command flakes' shell --inputs-from . nixpkgs#nixfmt -c nixfmt "$@"
+  else
+    return 127
+  fi
+}
+
+if ((${#nix_files[@]})) && ! ((skip_nix)); then
+  if ((fix)); then
+    nixfmt_cmd "${nix_files[@]}" || fail "nixfmt is required to format Nix files (use the dev shell: nix develop)"
+  fi
+  nixfmt_cmd --check "${nix_files[@]}" || fail "nixfmt reported problems (or nixfmt and nix are unavailable)"
 fi
 
 if ((${#sh_files[@]})); then

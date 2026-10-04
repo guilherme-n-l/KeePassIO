@@ -24,7 +24,8 @@ jobs:
         run: brew install swiftlint shellcheck
 
       - name: Lint
-        run: scripts/lint.sh
+        # Nix formatting is checked in the Linux job.
+        run: scripts/lint.sh --skip-nix
 
       - name: Test core packages on macOS
         run: swift test --package-path Packages/KeePassCore
