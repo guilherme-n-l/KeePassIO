@@ -25,10 +25,12 @@
         ]
 
         /// The color for a stored value; nil (or anything unreadable) is the
-        /// default accent.
+        /// default, the system blue. Not `Color.accentColor`: that follows
+        /// the current tint, so the default swatch would show whichever
+        /// color is already chosen.
         public static func color(_ hex: String?) -> Color {
             guard let hex, let value = UInt32(hex.trimmingCharacters(in: CharacterSet(charactersIn: "#")), radix: 16)
-            else { return .accentColor }
+            else { return Color(uiColor: .systemBlue) }
             return Color(
                 red: Double((value >> 16) & 0xFF) / 255,
                 green: Double((value >> 8) & 0xFF) / 255,

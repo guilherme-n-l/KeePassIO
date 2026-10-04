@@ -18,6 +18,7 @@ struct KeePassIOSApp: App {
                 .environment(diagnostics)
                 .environment(autoFill)
                 .background(ActivityMonitor.Installer(monitor: activity))
+                .background(WindowTint(color: AccentColors.color(model.settings.accentColor)))
                 .overlay {
                     // Hides the contents from the app switcher snapshot and
                     // from anyone glancing at Control Center, as the database

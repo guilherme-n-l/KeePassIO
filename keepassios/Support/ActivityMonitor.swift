@@ -64,3 +64,37 @@ final class ActivityMonitor {
         }
     }
 }
+
+/// Applies the accent color to the window's UIKit tint as well, which menu
+/// pickers, alerts and other UIKit-drawn controls use instead of SwiftUI's
+/// `.tint`.
+struct WindowTint: UIViewRepresentable {
+    let color: Color
+
+    func makeUIView(context: Context) -> TintView {
+        TintView()
+    }
+
+    func updateUIView(_ uiView: TintView, context: Context) {
+        uiView.tint = UIColor(color)
+    }
+
+    final class TintView: UIView {
+        var tint: UIColor? {
+            didSet { window?.tintColor = tint }
+        }
+
+        override init(frame: CGRect) {
+            super.init(frame: frame)
+            isUserInteractionEnabled = false
+        }
+
+        @available(*, unavailable)
+        required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
+
+        override func didMoveToWindow() {
+            super.didMoveToWindow()
+            window?.tintColor = tint
+        }
+    }
+}
