@@ -3,11 +3,11 @@ import Foundation
 import KPObservability
 
 @main
-struct KPBench: ParsableCommand {
+struct KPBench: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "kpbench",
         abstract: "Benchmarks and traces KeePassIOS core operations.",
-        subcommands: [Spans.self, ProbeCheck.self]
+        subcommands: [Spans.self, ProbeCheck.self, Generate.self, Open.self, MergeFiles.self]
     )
 }
 

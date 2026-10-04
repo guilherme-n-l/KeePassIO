@@ -37,7 +37,7 @@ let package = Package(
         .executableTarget(
             name: "kpbench",
             dependencies: [
-                "KPObservability",
+                "KPObservability", "KPKDBX", "KPModel", "KPSearch", "KPMerge", "KPSession",
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
             ]
         ),
