@@ -79,6 +79,30 @@ struct KeePassXCInteropTests {
         #expect(shown == "alice@example.com")
     }
 
+    /// KeePassXC's own key files (.keyx, XML version 2.0 with grouped hex)
+    /// must give the same key in both apps, with and without a password.
+    @Test(arguments: [true, false])
+    func keePassXCKeyxFilesInteroperate(withPassword: Bool) async throws {
+        let keyFileURL = directory.appendingPathComponent("Database-\(withPassword).keyx")
+        let scratch = directory.appendingPathComponent("scratch-\(withPassword).kdbx")
+        // db-create writes the .keyx (and a KDBX 3.1 file we don't use).
+        var create = ["db-create", "--set-key-file", keyFileURL.path, scratch.path]
+        if withPassword { create.insert("-p", at: 1) }
+        _ = try KeePassXC.run(create, input: withPassword ? "\(password)\n\(password)" : "")
+        let keyFile = try Data(contentsOf: keyFileURL)
+        #expect(String(bytes: keyFile.prefix(64), encoding: .utf8)?.contains("<KeyFile>") == true)
+
+        let key = CompositeKey(password: withPassword ? SecretString(password) : nil, keyFileData: keyFile)
+        let file = directory.appendingPathComponent("keyx-\(withPassword).kdbx")
+        try await codec.encode(try KDBXCodecTests.sampleDatabase(), settings: fastSettings, key: key, context: nil)
+            .write(to: file)
+
+        var show = ["show", "-s", "-a", "UserName", "-k", keyFileURL.path, file.path, "Work/Mail"]
+        if !withPassword { show.insert("--no-password", at: 1) }
+        let shown = try KeePassXC.run(show, input: withPassword ? password : "")
+        #expect(shown == "alice@example.com")
+    }
+
     @Test func kdbx3FilesAreRejectedBeforeDecrypting() async throws {
         let file = directory.appendingPathComponent("legacy.kdbx")
         // keepassxc-cli db-create writes KDBX 3.1.
