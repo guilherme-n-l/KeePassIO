@@ -194,7 +194,9 @@ struct XMLDocumentTests {
 
         #expect(database.meta.generator == "KeePassXC")
         #expect(database.meta.databaseName == "test3")
-        #expect(database.meta.databaseNameChanged == Date(timeIntervalSince1970: 1_747_996_682))
+        // KeePassXC wrote CurE3w4AAAA= = 63_883_766_282 s since 0001-01-01,
+        // i.e. 2025-05-25T10:38:02Z.
+        #expect(database.meta.databaseNameChanged == Date(timeIntervalSince1970: 1_748_169_482))
         #expect(database.meta.maintenanceHistoryDays == 365)
     }
 

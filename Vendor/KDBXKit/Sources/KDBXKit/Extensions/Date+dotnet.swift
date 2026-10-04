@@ -7,20 +7,17 @@
 import Foundation
 
 extension Date {
-    /// The .NET DateTime epoch: `0001-01-01 00:00:00 UTC`.
+    /// The .NET DateTime epoch: `0001-01-01 00:00:00 UTC` in the proleptic
+    /// Gregorian calendar.
     ///
     /// Used as the reference point for date encoding in KDBX files, which follow the
     /// .NET serialization format for date values.
-    private static let dotNetEpoch = DateComponents(
-        calendar: Calendar(identifier: .gregorian),
-        timeZone: TimeZone(secondsFromGMT: 0),
-        year: 1,
-        month: 1,
-        day: 1,
-        hour: 0,
-        minute: 0,
-        second: 0
-    ).date!
+    ///
+    /// It is a constant rather than a `DateComponents` date because Foundation's
+    /// Gregorian calendar switches to the Julian calendar before 1582, which puts
+    /// year 1 two days earlier than .NET's (and KeePass's) epoch and shifted every
+    /// timestamp exchanged with other clients by two days.
+    static let dotNetEpoch = Date(timeIntervalSince1970: -62_135_596_800)
 
     /// The number of seconds between this date and the .NET epoch (`0001-01-01T00:00:00Z`),
     /// rounded to the nearest second.
