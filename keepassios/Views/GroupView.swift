@@ -1,3 +1,4 @@
+import KPMerge
 import KPModel
 import KPSearch
 import KPSession

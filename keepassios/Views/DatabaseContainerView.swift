@@ -1,4 +1,5 @@
 import KPAppState
+import KPModel
 import KPSession
 import SwiftUI
 
