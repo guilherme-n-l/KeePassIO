@@ -13,7 +13,7 @@ struct DatabaseContainerView: View {
             if session.state == .unlocked, let database = session.database {
                 GroupView(session: session, groupID: database.root.id, isRoot: true)
             } else {
-                UnlockView(session: session, name: reference.displayName)
+                UnlockView(session: session, reference: reference)
             }
         }
         .onChange(of: session.state) { _, state in

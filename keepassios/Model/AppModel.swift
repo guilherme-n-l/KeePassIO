@@ -101,6 +101,7 @@ final class AppModel {
     }
 
     func removeDatabase(_ id: UUID) async {
+        QuickUnlock.remove(for: id)
         sessions[id]?.lock()
         sessions[id] = nil
         state = (try? await store.update { $0.databases.removeAll { $0.id == id } }) ?? state
@@ -122,6 +123,15 @@ final class AppModel {
             (try? await store.update { state in
                 if let index = state.databases.firstIndex(where: { $0.id == id }) {
                     state.databases[index].lastOpened = Date()
+                }
+            }) ?? state
+    }
+
+    func setQuickUnlock(_ enabled: Bool, for id: UUID) async {
+        state =
+            (try? await store.update { state in
+                if let index = state.databases.firstIndex(where: { $0.id == id }) {
+                    state.databases[index].quickUnlockEnabled = enabled
                 }
             }) ?? state
     }

@@ -1,3 +1,4 @@
+import KPAppState
 import KPModel
 import KPSession
 import SwiftUI
@@ -6,8 +7,11 @@ import UniformTypeIdentifiers
 /// Asks for the master password (and optional key file) of a locked
 /// database.
 struct UnlockView: View {
+    @Environment(AppModel.self) private var model
     let session: DatabaseSession
-    let name: String
+    let reference: DatabaseReference
+    private var name: String { reference.displayName }
+    @State private var rememberWithBiometrics = false
     @State private var password = ""
     @State private var keyFileData: Data?
     @State private var keyFileName: String?
@@ -33,6 +37,10 @@ struct UnlockView: View {
                         keyFileData = nil
                         keyFileName = nil
                     }
+                }
+                if QuickUnlock.isAvailable {
+                    Toggle("Unlock with \(QuickUnlock.biometryName) Next Time", isOn: $rememberWithBiometrics)
+                        .accessibilityIdentifier("unlock.rememberBiometrics")
                 }
             } header: {
                 Text(name)
@@ -60,7 +68,11 @@ struct UnlockView: View {
             }
         }
         .navigationTitle(name)
-        .onAppear { passwordFocused = true }
+        .onAppear {
+            rememberWithBiometrics = reference.quickUnlockEnabled
+            passwordFocused = true
+        }
+        .task { await tryQuickUnlock() }
         .fileImporter(isPresented: $isPickingKeyFile, allowedContentTypes: [.data]) { result in
             guard case .success(let url) = result else { return }
             let scoped = url.startAccessingSecurityScopedResource()
@@ -77,9 +89,28 @@ struct UnlockView: View {
         )
         Task {
             await session.unlock(with: key)
-            if session.state == .unlocked {
-                password = ""
+            guard session.state == .unlocked else { return }
+            password = ""
+            if rememberWithBiometrics {
+                try? QuickUnlock.store(key, for: reference.id, validFor: model.settings.quickUnlockValiditySeconds)
+            } else {
+                QuickUnlock.remove(for: reference.id)
             }
+            await model.setQuickUnlock(rememberWithBiometrics, for: reference.id)
+        }
+    }
+
+    /// Unlocks with biometrics when a quick-unlock key is stored.
+    private func tryQuickUnlock() async {
+        guard reference.quickUnlockEnabled, session.state == .locked, QuickUnlock.hasKey(for: reference.id) else {
+            return
+        }
+        let reason = String(localized: "Unlock \(name)")
+        guard let key = try? await QuickUnlock.retrieve(for: reference.id, reason: reason) else { return }
+        await session.unlock(with: key)
+        if case .failed = session.state {
+            // The stored key no longer works (the master key changed).
+            QuickUnlock.remove(for: reference.id)
         }
     }
 }
