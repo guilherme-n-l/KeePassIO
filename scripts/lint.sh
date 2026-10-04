@@ -54,6 +54,13 @@ swift_format() {
   fi
 }
 
+# SwiftLint's Linux build needs SourceKit from the Swift toolchain for some
+# rules, including the custom ones in .swiftlint.yml.
+if [[ "$(uname -s)" == "Linux" && -z "${LINUX_SOURCEKIT_LIB_PATH:-}" ]] && command -v swift >/dev/null 2>&1; then
+  LINUX_SOURCEKIT_LIB_PATH="$(dirname "$(readlink -f "$(command -v swift)")")/../lib"
+  export LINUX_SOURCEKIT_LIB_PATH
+fi
+
 mapfile -t swift_files < <(list_files '*.swift')
 mapfile -t md_files < <(list_files '*.md')
 mapfile -t sh_files < <(list_files '*.sh'; list_files '.githooks/*')

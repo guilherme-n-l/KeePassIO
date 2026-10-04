@@ -24,5 +24,4 @@ Project skills live in `.claude/skills/` (see its README for sources and license
 ## Environment notes
 
 - A SessionStart hook runs `scripts/bootstrap.sh`, so git hooks are active in every Claude session.
-
-- The cloud container is Linux without a Swift toolchain (download.swift.org is blocked by its network policy), so Swift code can't be built, formatted or linted here; the owner builds on their Mac and CI checks everything.
+- In Claude cloud sessions (Linux) the same hook runs `scripts/setup-linux-toolchain.sh`, which installs Swift, swift-format, SwiftLint and ShellCheck. The core packages build, test and lint here; the iOS app targets need Xcode on the owner's Mac or macOS CI.

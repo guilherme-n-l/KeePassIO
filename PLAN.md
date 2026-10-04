@@ -241,7 +241,7 @@ Linux CI enforces the core-only rows (KDF, parse, search, merge, serialize) thro
 5. **Build environment:**
    - Xcode on the owner's Mac is the primary build and the place for device profiling (Instruments).
    - GitHub Actions runs Linux CI for the core packages and macOS CI for the apps. The repo is public, so both run on every PR at no cost (section 8).
-   - The Claude cloud container is Linux with no Swift toolchain and blocked downloads, so it can only write code, not build it.
+   - Claude cloud sessions are Linux: `scripts/setup-linux-toolchain.sh` installs Swift 6.3, swift-format and SwiftLint there, so core packages are built, tested and linted before commit. App targets are checked on the owner's Mac and in macOS CI.
 6. **No SwiftData.** Vault data stays in the KDBX file; non-secret app state uses `KPAppState` (section 3).
 7. **Platforms: iOS and iPadOS only.** No macOS, Mac Catalyst, "Designed for iPad" on Mac, visionOS or watchOS targets. (iPad apps can run on Apple silicon Macs; we opt out in App Store Connect to avoid supporting an untested platform.)
 8. **Language: English only at launch, built for easy expansion.**
