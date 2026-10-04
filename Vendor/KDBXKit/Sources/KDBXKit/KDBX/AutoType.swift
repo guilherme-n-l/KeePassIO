@@ -63,6 +63,11 @@ public extension KDBX {
             /// Keystroke sequence to send when this association
             /// matches — same syntax as ``AutoType/defaultSequence``.
             public var keystrokeSequence: String
+
+            public init(window: String, keystrokeSequence: String) {
+                self.window = window
+                self.keystrokeSequence = keystrokeSequence
+            }
         }
 
         /// Per-window-title overrides, evaluated in order. When none
