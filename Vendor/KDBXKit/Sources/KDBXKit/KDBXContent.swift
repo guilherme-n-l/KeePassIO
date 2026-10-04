@@ -32,10 +32,11 @@ public struct KDBXContent: Equatable, Sendable {
     public var innerHeader: InnerHeader
 
     /// Diagnostics emitted by the XML parser during the most recent parse:
-    /// unknown elements and attributes that were silently dropped, malformed
-    /// values that were tolerated, etc. Useful as a regression net for
-    /// detecting data loss when reading files produced by other KDBX-aware
-    /// tools (KeePass, KeePassXC, Strongbox, etc.).
+    /// unknown elements that were preserved verbatim (see
+    /// ``KDBX/UnknownElement``), unknown attributes that were dropped,
+    /// malformed values that were tolerated, etc. Useful as a regression net
+    /// for spotting features of files produced by other KDBX-aware tools
+    /// (KeePass, KeePassXC, Strongbox, etc.) that this library doesn't model.
     ///
     /// Empty for files produced by `KDBXWriter` against the current model.
     public var parserWarnings: [String]

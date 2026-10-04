@@ -118,6 +118,10 @@ public extension KDBX {
         /// See <https://keepass.info/help/v2/entry.html#hst>.
         public var history: [Entry]
 
+        /// Child elements of `<Entry>` that KDBXKit doesn't model, kept so
+        /// they're written back on save. See ``UnknownElement``.
+        public var unknownElements: [UnknownElement]
+
         public init(
             uuid: UUID,
             iconID: UInt32 = 0,
@@ -133,7 +137,8 @@ public extension KDBX {
             binaries: [ProtectedBinary] = [],
             autoType: AutoType? = nil,
             customData: [CustomDataItem] = [],
-            history: [Entry] = []
+            history: [Entry] = [],
+            unknownElements: [UnknownElement] = []
         ) {
             self.uuid = uuid
             self.iconID = iconID
@@ -150,6 +155,7 @@ public extension KDBX {
             self.autoType = autoType
             self.customData = customData
             self.history = history
+            self.unknownElements = unknownElements
         }
     }
 }

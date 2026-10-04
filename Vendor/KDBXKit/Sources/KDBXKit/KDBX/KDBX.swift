@@ -24,9 +24,14 @@ public struct KDBX: Sendable, Equatable {
     /// nest under that one.
     public var root: Root
 
-    public init(meta: Meta, root: Root) {
+    /// Child elements of `<KeePassFile>` other than `<Meta>` and `<Root>`,
+    /// kept so they're written back on save. See ``UnknownElement``.
+    public var unknownElements: [UnknownElement]
+
+    public init(meta: Meta, root: Root, unknownElements: [UnknownElement] = []) {
         self.meta = meta
         self.root = root
+        self.unknownElements = unknownElements
     }
 }
 

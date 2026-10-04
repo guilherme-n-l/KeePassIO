@@ -346,6 +346,13 @@ public extension KDBX {
             }
         }
 
+        /// Child elements of `<Meta>` that KDBXKit doesn't model, kept so
+        /// they're written back on save. See ``UnknownElement``.
+        ///
+        /// Changing this list doesn't bump ``settingsChanged``: these
+        /// elements belong to whichever client wrote them.
+        public var unknownElements: [UnknownElement]
+
         /// Memberwise initializer. `didSet` observers do **not** fire during
         /// these initial assignments — Swift treats them as the property's
         /// first write. Deserializers (XML reader, lazy/eager open paths)
@@ -381,7 +388,8 @@ public extension KDBX {
             historyMaxSize: ValueOrUnlimited<UInt64>? = nil,
             lastSelectedGroup: UUID? = nil,
             lastTopVisibleGroup: UUID? = nil,
-            customData: [CustomDataWithTimes] = []
+            customData: [CustomDataWithTimes] = [],
+            unknownElements: [UnknownElement] = []
         ) {
             self.generator = generator
             self.headerHash = headerHash
@@ -410,6 +418,7 @@ public extension KDBX {
             self.lastSelectedGroup = lastSelectedGroup
             self.lastTopVisibleGroup = lastTopVisibleGroup
             self.customData = customData
+            self.unknownElements = unknownElements
         }
     }
 }

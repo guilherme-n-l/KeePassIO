@@ -31,12 +31,18 @@ public extension KDBX {
         /// deletions should record them here.
         public var deletedObjects: [DeletedObject]
 
+        /// Child elements of `<Root>` that KDBXKit doesn't model, kept so
+        /// they're written back on save. See ``UnknownElement``.
+        public var unknownElements: [UnknownElement]
+
         public init(
             group: Group,
-            deletedObjects: [DeletedObject]
+            deletedObjects: [DeletedObject],
+            unknownElements: [UnknownElement] = []
         ) {
             self.group = group
             self.deletedObjects = deletedObjects
+            self.unknownElements = unknownElements
         }
     }
 }

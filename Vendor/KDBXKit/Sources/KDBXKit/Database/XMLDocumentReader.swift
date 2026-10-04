@@ -32,8 +32,8 @@ private final class KeystreamCursor {
 /// (non-mutating) `parse*` helpers can append without each one becoming
 /// `mutating`. Surfaced via `XMLDocumentReader.collectedWarnings` and then
 /// threaded into `KDBXContent.parserWarnings` so callers can see what was
-/// dropped during a read — useful for catching unknown elements emitted
-/// by other KDBX-aware tools that we don't yet model.
+/// dropped or kept unmodeled during a read — useful for catching unknown
+/// elements emitted by other KDBX-aware tools that we don't yet model.
 private final class ParserWarnings {
     var messages: [String] = []
     func add(_ message: String) { messages.append(message) }
@@ -157,6 +157,14 @@ struct XMLDocumentReader {
         let log = KDBXLog.parser
         log.debug("\(message)")
         warnings.add(message)
+    }
+
+    /// Keeps an element the model has no field for, so the writer can put
+    /// it back on save, and notes it in `collectedWarnings` so callers can
+    /// still tell that the file uses something this library doesn't model.
+    private func preserveUnknown(_ node: Node) -> KDBX.UnknownElement {
+        record("Preserved unknown element \(node.fullyQualifiedName)")
+        return KDBX.UnknownElement(node)
     }
 
     // MARK: Parse <datatype> helpers
@@ -392,8 +400,8 @@ struct XMLDocumentReader {
             throw .corrupted(reason: "Invalid root element: \(rootElement.name)")
         }
 
-        let (meta, root) = try parseKeepassFile(rootElement)
-        var database = KDBX(meta: meta, root: root)
+        let (meta, root, unknownElements) = try parseKeepassFile(rootElement)
+        var database = KDBX(meta: meta, root: root, unknownElements: unknownElements)
 
         // The <Meta><Binaries> pool is a KDBX 3.1 construct. A 4.x file
         // (dotNetTicksBase64 dates) storing binaries in the inner header
@@ -445,9 +453,10 @@ struct XMLDocumentReader {
 
     // MARK: Parse <XML Tag> helpers
 
-    func parseKeepassFile(_ node: Node) throws(Error) -> (KDBX.Meta, KDBX.Root) {
+    func parseKeepassFile(_ node: Node) throws(Error) -> (KDBX.Meta, KDBX.Root, [KDBX.UnknownElement]) {
         var meta: KDBX.Meta?
         var root: KDBX.Root?
+        var unknownElements: [KDBX.UnknownElement] = []
 
         for child in node.children {
             switch child.name {
@@ -458,7 +467,7 @@ struct XMLDocumentReader {
                 root = try parseRoot(child)
 
             default:
-                record("Unexpected element: \(child.fullyQualifiedName)")
+                unknownElements.append(preserveUnknown(child))
             }
         }
 
@@ -466,7 +475,7 @@ struct XMLDocumentReader {
             throw .corrupted(reason: "Missing Meta or Root element in \(node.fullyQualifiedName)")
         }
 
-        return (meta, root)
+        return (meta, root, unknownElements)
     }
 
     func parseMeta(_ node: Node) throws(Error) -> KDBX.Meta {
@@ -504,6 +513,7 @@ struct XMLDocumentReader {
         var lastSelectedGroup: UUID?
         var lastTopVisibleGroup: UUID?
         var customData: [KDBX.CustomDataWithTimes] = []
+        var unknownElements: [KDBX.UnknownElement] = []
 
         for child in node.children {
             switch child.name {
@@ -636,7 +646,7 @@ struct XMLDocumentReader {
                 try parseInlineBinariesPool(child)
 
             default:
-                record("Unexpected element \(child.fullyQualifiedName)")
+                unknownElements.append(preserveUnknown(child))
             }
         }
 
@@ -667,13 +677,15 @@ struct XMLDocumentReader {
             historyMaxSize: historyMaxSize,
             lastSelectedGroup: lastSelectedGroup,
             lastTopVisibleGroup: lastTopVisibleGroup,
-            customData: customData
+            customData: customData,
+            unknownElements: unknownElements
         )
     }
 
     func parseRoot(_ node: Node) throws(Error) -> KDBX.Root {
         var group: KDBX.Group?
         var deletedObjects: [KDBX.DeletedObject]?
+        var unknownElements: [KDBX.UnknownElement] = []
 
         for child in node.children {
             switch child.name {
@@ -684,7 +696,7 @@ struct XMLDocumentReader {
                 deletedObjects = try parseDeletedObjects(child)
 
             default:
-                record("Unexpected element \(child.fullyQualifiedName)")
+                unknownElements.append(preserveUnknown(child))
             }
         }
 
@@ -692,7 +704,7 @@ struct XMLDocumentReader {
             throw .corrupted(reason: "Missing Group element in \(node.fullyQualifiedName)")
         }
 
-        return .init(group: group, deletedObjects: deletedObjects ?? [])
+        return .init(group: group, deletedObjects: deletedObjects ?? [], unknownElements: unknownElements)
     }
 
     func parseMemoryProtection(_ node: Node) throws(Error) -> KDBX.MemoryProtectionConfig {
@@ -953,7 +965,7 @@ struct XMLDocumentReader {
                 group.groups.append(subGroup)
 
             default:
-                record("Unexpected element \(child.fullyQualifiedName)")
+                group.unknownElements.append(preserveUnknown(child))
             }
         }
 
@@ -1113,7 +1125,7 @@ struct XMLDocumentReader {
                 entry.history = try parseEntryList(child, historyDepth: historyDepth + 1)
 
             default:
-                record("Unexpected element \(child.fullyQualifiedName)")
+                entry.unknownElements.append(preserveUnknown(child))
             }
         }
 

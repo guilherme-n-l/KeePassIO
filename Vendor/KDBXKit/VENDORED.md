@@ -10,7 +10,7 @@ Why a fork and not a dependency: see `docs/adr/0001-kdbx-library.md`.
 
 ## Local patches
 
-Each patch is its own commit in this repository, touching only this directory; `git log -- Vendor/KDBXKit` lists them.
+Each patch is its own commit in this repository, touching only this directory; `git log -- Vendor/KDBXKit` lists them. The epoch and unknown-element fixes are also prepared for upstream (issues and a pull request to shadone/KDBXKit).
 
 | Patch | Why |
 |---|---|
@@ -18,6 +18,7 @@ Each patch is its own commit in this repository, touching only this directory; `
 | Epoch fix: the .NET epoch is the constant `-62_135_596_800` instead of a Foundation `DateComponents` date | Foundation's Gregorian calendar is Julian before 1582, so every KDBX 4 timestamp read or written was 2 days off from KeePass/KeePassXC |
 | Public `KDBX.CustomDataItem.init(key:value:)` | Group and entry custom data couldn't be created outside the library |
 | Public `KDBX.AutoType.Association.init(window:keystrokeSequence:)` | Auto-type associations couldn't be created outside the library |
+| Preserve unknown XML elements (`KDBX.UnknownElement`, `unknownElements` on KDBX, Meta, Root, Group, Entry) and write them back | Elements written by other clients, plugins or newer format revisions were silently dropped on save. Limits: elements nested inside Times/AutoType/CustomData are still dropped; a `Protected="True"` value inside an unknown element is written back as its old ciphertext, which no longer decrypts after the inner-stream key changes on save |
 
 ## Updating
 

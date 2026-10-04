@@ -94,6 +94,10 @@ public extension KDBX {
         /// Nested subfolders.
         public var groups: [Group]
 
+        /// Child elements of `<Group>` that KDBXKit doesn't model, kept so
+        /// they're written back on save. See ``UnknownElement``.
+        public var unknownElements: [UnknownElement]
+
         public init(
             uuid: UUID,
             name: String? = nil,
@@ -110,7 +114,8 @@ public extension KDBX {
             tags: [String] = [],
             customData: [CustomDataItem] = [],
             entries: [Entry] = [],
-            groups: [Group] = []
+            groups: [Group] = [],
+            unknownElements: [UnknownElement] = []
         ) {
             self.uuid = uuid
             self.name = name
@@ -128,6 +133,7 @@ public extension KDBX {
             self.customData = customData
             self.entries = entries
             self.groups = groups
+            self.unknownElements = unknownElements
         }
     }
 }

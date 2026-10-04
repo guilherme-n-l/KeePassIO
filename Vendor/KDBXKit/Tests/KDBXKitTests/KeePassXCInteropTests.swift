@@ -142,6 +142,63 @@ struct KeePassXCInteropTests {
     }
 
     @Test(
+        "Output carrying preserved unknown elements still opens and decrypts in KeePassXC",
+        .enabled(if: KeePassXCInteropTests.cliAvailable, "KeePassXC CLI not installed")
+    )
+    func ourOutput_withUnknownElements_readableByKeePassXC() throws {
+        let path = Bundle.module.path(forResource: "Resources/kpxc-rich", ofType: "kdbx")!
+        let data = try Data(contentsOf: URL(filePath: path))
+        let unlock = UnlockData(masterPassword: "123")
+
+        var reader = KDBXReader(data)
+        var content = try reader.parse(unlockData: unlock)
+
+        // Put an unknown element at every level that keeps them. The entry
+        // one carries a `Protected="True"` value: KeePassXC skips unknown
+        // elements without consuming inner-stream keystream, so every
+        // protected value after it must still decrypt.
+        let extra = KDBX.UnknownElement(
+            name: "KDBXKitInteropExtra",
+            attributes: [.init(name: "Version", value: "1")],
+            children: [
+                .element(.init(
+                    name: "Value",
+                    attributes: [.init(name: "Protected", value: "True")],
+                    children: [.text("AAAAAAAA")]
+                )),
+            ]
+        )
+        content.database.unknownElements = [extra]
+        content.database.meta.unknownElements = [extra]
+        content.database.root.unknownElements = [extra]
+        content.database.root.group.unknownElements = [extra]
+        for i in content.database.root.group.entries.indices {
+            content.database.root.group.entries[i].unknownElements = [extra]
+        }
+
+        let outPath = FileManager.default.temporaryDirectory
+            .appendingPathComponent("kdbxkit-interop-\(UUID().uuidString).kdbx").path
+        defer { try? FileManager.default.removeItem(atPath: outPath) }
+
+        let outputStream = OutputStream(toFileAtPath: outPath, append: false)!
+        outputStream.open()
+        try KDBXWriter(to: outputStream).write(content, unlockData: unlock)
+        outputStream.close()
+
+        let listing = try runCLI(["ls", "-R", outPath], stdin: "123\n")
+        #expect(listing.contains("GitHub"))
+        #expect(listing.contains("Work/"))
+
+        let output = try runCLI(["show", "-s", outPath, "Unicode 测试 🌍"], stdin: "123\n")
+        #expect(output.contains("Password: ünïcödé-päss-🔐"))
+
+        // And our own reader gets them back.
+        let reread = try KDBXReader.parse(Data(contentsOf: URL(filePath: outPath)), unlockData: unlock)
+        #expect(reread.database.unknownElements == [extra])
+        #expect(reread.database.root.group.entries.allSatisfy { $0.unknownElements == [extra] })
+    }
+
+    @Test(
         "Our writer's keyfile-protected output is readable by keepassxc-cli",
         .enabled(if: KeePassXCInteropTests.cliAvailable, "KeePassXC CLI not installed")
     )

@@ -200,6 +200,16 @@ struct XMLDocumentWriter {
                 write(customData, to: itemNode)
             }
         }
+        write(meta.unknownElements, to: node)
+    }
+
+    /// Writes elements the reader preserved but doesn't model. They go
+    /// after the known children of the same parent, in their original
+    /// order.
+    private func write(_ unknownElements: [KDBX.UnknownElement], to node: Node) {
+        for element in unknownElements {
+            element.append(to: node)
+        }
     }
 
     private func write(_ root: KDBX.Root, to node: Node) {
@@ -213,6 +223,7 @@ struct XMLDocumentWriter {
                 write(deletedObject, to: itemNode)
             }
         }
+        write(root.unknownElements, to: node)
     }
 
     private func write(_ group: KDBX.Group, to node: Node) {
@@ -274,6 +285,7 @@ struct XMLDocumentWriter {
                 write(subgroup, to: subgroupNode)
             }
         }
+        write(group.unknownElements, to: node)
     }
 
     private func write(_ entry: KDBX.Entry, to node: Node) {
@@ -337,6 +349,7 @@ struct XMLDocumentWriter {
                 write(historicalEntry, to: entryNode)
             }
         }
+        write(entry.unknownElements, to: node)
     }
 
     private func write(_ protectedString: KDBX.ProtectedString, to node: Node) {
@@ -520,6 +533,7 @@ struct XMLDocumentWriter {
         write(database.meta, to: metaNode)
         let rootNode = rootDocumentNode.addElement("Root")
         write(database.root, to: rootNode)
+        write(database.unknownElements, to: rootDocumentNode)
 
         try write(document.xmlData(indentation: "\t"))
     }
