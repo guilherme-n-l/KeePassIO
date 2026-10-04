@@ -33,7 +33,7 @@ Modular Swift Package, UI-free core so it builds and tests on **Linux** (fast CI
 ```
 KeePassIOS/
   Packages/
-    KPCrypto/      AES-256, ChaCha20, Salsa20, Twofish (legacy), SHA/HMAC, AES-KDF, Argon2d/2id (vendored C reference impl), key-file/composite-key derivation
+    KPCrypto/      (thin; mostly dependencies, see 9b) AES-256, ChaCha20, Salsa20, Twofish (legacy), SHA/HMAC, AES-KDF, Argon2d/2id (vendored C reference impl), key-file/composite-key derivation
     KPFormat/      KDBX3/4 reader+writer, HMAC block stream, gzip, XML (streaming, not DOM), inner-header protected values, KDB import
     KPModel/       Database, Group, Entry, History, DeletedObjects, CustomData, Attachments (binary pool, dedup), Templates
     KPMerge/       3-way/2-way merge engine, conflict model, dry-run diff
@@ -131,6 +131,30 @@ Also: `os.Logger` with privacy annotations (`.private` default; lint rule bans i
 3. **Storage: local files only, via the Files app** (document picker, security-scoped bookmarks, `UIDocumentPickerViewController`/`fileImporter`, Files-provider locations work transparently). No cloud SDKs, no WebDAV/SFTP. `KPStorage` shrinks to a local-file + bookmark layer.
 4. **Build env:** see Section 10.
 5. **Name: KeePasIOS** (repo `keepassios`). Bundle ID TBD.
+
+## 9b. Build vs. buy: handroll only when necessary
+Rule: use a maintained MIT/BSD/Apache/CC0 dependency unless it fails a hard requirement (license, security, extension memory, iOS 17, correctness). Every handrolled component needs a one-line justification in this table.
+
+| Need | Use (don't handroll) | Handroll? |
+|---|---|---|
+| AES, ChaCha20, SHA, HMAC, HKDF | CryptoKit / [swift-crypto](https://github.com/apple/swift-crypto) | No |
+| Argon2 | Vendored reference C impl (CC0/Apache), or [Argon2Kit](https://github.com/dnrops/Argon2Kit)-style wrapper | No (wrapper only) |
+| Twofish / Salsa20 (legacy) | Small vetted C impl, only if needed for old DBs | Defer; skip until a user needs it |
+| gzip | zlib (system) / `Compression` framework | No |
+| KDBX 3.1/4.x parse+write, SecureBytes | **[KDBXKit](https://github.com/shadone/KDBXKit)** (BSD-2, KeePassXC-tested, streaming attachments, mlock'd secrets) as the base | Evaluate first (spike below); fork if gaps |
+| KDBX parser alt. | KeePassKit is GPL-3 (incompatible with MIT) | No |
+| XML | Foundation `XMLParser` (SAX) | No |
+| Logging / metrics / CLI | swift-log, swift-metrics, swift-argument-parser | No |
+| Tracing | `OSSignposter` (Apple) + thin `Trace.span` wrapper | Thin wrapper only |
+| Biometrics, Keychain, Secure Enclave | LocalAuthentication / Security / CryptoKit | No |
+| Passkeys, AutoFill, TOTP codes | AuthenticationServices; TOTP via CryptoKit HMAC (~30 lines) | Tiny TOTP only |
+| Files access | `fileImporter` / `UIDocumentPickerViewController`, bookmarks, `NSFileCoordinator` | No |
+| Fuzzing / property tests | SwiftPM libFuzzer, swift-testing, [SwiftCheck](https://github.com/typelift/SwiftCheck) | No |
+| **Merge engine** | Nothing usable exists (KDBXKit lists no merge/history) | **Yes, core differentiator** |
+| **Encrypted quick-create inbox** | CryptoKit primitives (HPKE / Curve25519) | Protocol glue only |
+| **Diff/merge UI, quick-create flows, diagnostics screen** | SwiftUI | Yes (product code) |
+
+**KDBXKit spike (first task):** its stated floor is iOS 18 / Swift 6.1 (our target is 17), it is single-maintainer with very low adoption, and it has no merge or history API. The spike checks: lowering its deployment target to 17, KDBX3 write need, round-trip fidelity of unknown XML/custom data/history, extension memory use, and API access needed for merge. Outcomes: (a) depend on it as-is, (b) fork under BSD-2 with attribution and upstream patches, (c) as a last resort handroll only the reader/writer on top of CryptoKit + vendored Argon2. We'll also reconsider raising the min iOS to 18 if (a) is clearly best.
 
 ## 10. Immediate next steps
 1. Confirm §9 decisions.
