@@ -127,13 +127,13 @@ Also: `os.Logger` with privacy annotations (`.private` default; lint rule bans i
 
 ## 9. Decisions (resolved)
 1. **License: MIT.** Clean-room only: KeePassium/KeePassDX/KeePassXC are GPL, so we read specs (KDBX format docs) and observe behavior, never copy their code. Third-party deps must be MIT/BSD/Apache/CC0 compatible (Argon2 reference impl is CC0/Apache).
-2. **Minimum iOS: 17.**
+2. **Minimum iOS: 18** (raised from 17 so KDBXKit, whose floor is iOS 18 / Swift 6.1, can be used without forking; also unlocks the AutoFill save-password and passkey provider APIs as baseline, not enhancements).
 3. **Storage: local files only, via the Files app** (document picker, security-scoped bookmarks, `UIDocumentPickerViewController`/`fileImporter`, Files-provider locations work transparently). No cloud SDKs, no WebDAV/SFTP. `KPStorage` shrinks to a local-file + bookmark layer.
 4. **Build env:** see Section 10.
 5. **Name: KeePasIOS** (repo `keepassios`). Bundle ID TBD.
 
 ## 9b. Build vs. buy: handroll only when necessary
-Rule: use a maintained MIT/BSD/Apache/CC0 dependency unless it fails a hard requirement (license, security, extension memory, iOS 17, correctness). Every handrolled component needs a one-line justification in this table.
+Rule: use a maintained MIT/BSD/Apache/CC0 dependency unless it fails a hard requirement (license, security, extension memory, iOS 18, correctness). Every handrolled component needs a one-line justification in this table.
 
 | Need | Use (don't handroll) | Handroll? |
 |---|---|---|
@@ -154,7 +154,7 @@ Rule: use a maintained MIT/BSD/Apache/CC0 dependency unless it fails a hard requ
 | **Encrypted quick-create inbox** | CryptoKit primitives (HPKE / Curve25519) | Protocol glue only |
 | **Diff/merge UI, quick-create flows, diagnostics screen** | SwiftUI | Yes (product code) |
 
-**KDBXKit spike (first task):** its stated floor is iOS 18 / Swift 6.1 (our target is 17), it is single-maintainer with very low adoption, and it has no merge or history API. The spike checks: lowering its deployment target to 17, KDBX3 write need, round-trip fidelity of unknown XML/custom data/history, extension memory use, and API access needed for merge. Outcomes: (a) depend on it as-is, (b) fork under BSD-2 with attribution and upstream patches, (c) as a last resort handroll only the reader/writer on top of CryptoKit + vendored Argon2. We'll also reconsider raising the min iOS to 18 if (a) is clearly best.
+**KDBXKit spike (first task):** with the min iOS now 18, its deployment floor no longer blocks us. It is still single-maintainer with very low adoption and has no merge or history API. The spike checks: KDBX3 write need, round-trip fidelity of unknown XML/custom data/history, extension memory use, and API access needed for merge. Outcomes: (a) depend on it as-is (expected), (b) fork under BSD-2 with attribution and upstream patches, (c) as a last resort handroll only the reader/writer on top of CryptoKit + vendored Argon2.
 
 ## 9c. Lower-level languages (only when measured)
 - Default is Swift. Drop to a lower-level language only when a profile (section 6, budgets in section 7) shows a Swift hot path missing its budget after normal optimization, and the gain justifies the FFI and build cost.
