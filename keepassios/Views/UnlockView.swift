@@ -16,6 +16,7 @@ struct UnlockView: View {
     @State private var keyFileData: Data?
     @State private var keyFileName: String?
     @State private var isPickingKeyFile = false
+    @State private var keyFileError: String?
     @FocusState private var passwordFocused: Bool
 
     var body: some View {
@@ -45,7 +46,11 @@ struct UnlockView: View {
             } header: {
                 Text(name)
             } footer: {
-                if case .failed(let error) = session.state {
+                if let keyFileError {
+                    Text(keyFileError)
+                        .foregroundStyle(.red)
+                        .accessibilityIdentifier("unlock.keyFileError")
+                } else if case .failed(let error) = session.state {
                     Text(error.userMessage)
                         .foregroundStyle(.red)
                         .accessibilityIdentifier("unlock.error")
@@ -75,11 +80,35 @@ struct UnlockView: View {
         .task { await tryQuickUnlock() }
         .fileImporter(isPresented: $isPickingKeyFile, allowedContentTypes: [.data]) { result in
             guard case .success(let url) = result else { return }
+            Task { await loadKeyFile(from: url) }
+        }
+    }
+
+    /// Reads the chosen key file through file coordination, so a file in
+    /// iCloud Drive or another provider is downloaded first. The file is
+    /// shown as selected only once its contents were actually read.
+    private func loadKeyFile(from url: URL) async {
+        keyFileData = nil
+        keyFileName = nil
+        keyFileError = nil
+        let data = await Task.detached { () -> Data? in
             let scoped = url.startAccessingSecurityScopedResource()
             defer { if scoped { url.stopAccessingSecurityScopedResource() } }
-            keyFileData = try? Data(contentsOf: url)
-            keyFileName = url.lastPathComponent
+            var coordinationError: NSError?
+            var data: Data?
+            NSFileCoordinator().coordinate(readingItemAt: url, options: [], error: &coordinationError) { readURL in
+                data = try? Data(contentsOf: readURL)
+            }
+            return data
+        }.value
+        guard let data, !data.isEmpty else {
+            keyFileError = String(
+                localized: "The key file couldn't be read. If it's in iCloud Drive, make sure it's downloaded."
+            )
+            return
         }
+        keyFileData = data
+        keyFileName = url.lastPathComponent
     }
 
     private func unlock() {
