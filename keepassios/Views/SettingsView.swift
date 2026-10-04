@@ -12,6 +12,7 @@ struct SettingsView: View {
         NavigationStack {
             Form {
                 AutoFillSettingsSection()
+                AccentColorSection()
                 Section {
                     Picker("Auto-Lock", selection: setting(\.autoLockSeconds)) {
                         Text("Immediately").tag(0)

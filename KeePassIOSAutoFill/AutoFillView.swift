@@ -18,6 +18,7 @@ struct AutoFillView: View {
                     }
                 }
         }
+        .tint(AccentColors.color(model.accentColor))
     }
 
     @ViewBuilder private var content: some View {

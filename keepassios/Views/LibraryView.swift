@@ -64,14 +64,6 @@ struct LibraryView: View {
             .navigationDestination(for: DatabaseRoute.self) { route in
                 destination(for: route)
             }
-            .environment(\.goToDatabaseLevel) { level in
-                // The path is [database, group, group, ...] while a group
-                // is on screen, so level n is n + 1 items deep.
-                let extra = path.count - 1 - level
-                if extra > 0 {
-                    path.removeLast(extra)
-                }
-            }
             .onChange(of: path) { oldPath, newPath in
                 // Opening a database from the library is a fresh visit:
                 // Face ID may be offered again.
@@ -170,6 +162,16 @@ struct LibraryView: View {
                 if let target, path.isEmpty {
                     path.append(target)
                 }
+            }
+        }
+        // On the stack itself, so screens pushed onto it see it too; set on
+        // the library's root content, pushed group screens didn't.
+        .environment(\.goToDatabaseLevel) { level in
+            // The path is [database, group, group, ...] while a group is on
+            // screen, so level n is n + 1 items deep.
+            let extra = path.count - 1 - level
+            if extra > 0 {
+                path.removeLast(extra)
             }
         }
     }

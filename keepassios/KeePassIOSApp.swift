@@ -1,4 +1,5 @@
 import KPAppState
+import KPPlatform
 import SwiftUI
 
 @main
@@ -16,6 +17,7 @@ struct KeePassIOSApp: App {
                 .environment(model)
                 .environment(diagnostics)
                 .environment(autoFill)
+                .tint(AccentColors.color(model.settings.accentColor))
                 .background(ActivityMonitor.Installer(monitor: activity))
                 .overlay {
                     // Hides the contents from the app switcher snapshot and

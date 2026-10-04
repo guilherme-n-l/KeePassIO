@@ -83,6 +83,12 @@ struct AppStateStoreTests {
         #expect(generator.alsoInclude.isEmpty)
     }
 
+    @Test func accentColorIsRemembered() async throws {
+        #expect(try await store.load().settings.accentColor == nil)
+        try await store.update { $0.settings.accentColor = "#4FA34F" }
+        #expect(try await store.load().settings.accentColor == "#4FA34F")
+    }
+
     @Test func refusesFilesFromNewerVersions() async throws {
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         try Data(#"{"version": 99, "somethingNew": true}"#.utf8).write(to: store.fileURL)

@@ -37,6 +37,8 @@ final class AutoFillModel {
     private(set) var isLoaded = false
     /// The generator settings shared with the app.
     private(set) var generatorSettings = GeneratorSettings()
+    /// The accent color chosen in the app.
+    private(set) var accentColor: String?
     /// Set once the request is answered, so the sheet doesn't show the
     /// unlock screen (and offer Face ID) while it closes.
     private(set) var isFinished = false
@@ -65,6 +67,7 @@ final class AutoFillModel {
             let state = try await store.load()
             databases = state.databases
             generatorSettings = state.settings.generator
+            accentColor = state.settings.accentColor
             let preferred = state.settings.quickCreateDatabaseID
             if let reference = databases.first(where: { $0.id == preferred }) ?? databases.first {
                 select(reference)

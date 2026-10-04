@@ -106,6 +106,8 @@ public struct Settings: Codable, Equatable, Sendable {
     public var networkAllowed: Bool = false
     public var faviconDownloadEnabled: Bool = false
     public var breachCheckEnabled: Bool = false
+    /// The app's accent color as "#RRGGBB"; nil uses the default.
+    public var accentColor: String?
     /// Database that quick create and AutoFill saves go to.
     public var quickCreateDatabaseID: UUID?
     public var generator: GeneratorSettings = GeneratorSettings()
@@ -127,6 +129,7 @@ public struct Settings: Codable, Equatable, Sendable {
             ?? defaults.faviconDownloadEnabled
         breachCheckEnabled =
             try container.decodeIfPresent(Bool.self, forKey: .breachCheckEnabled) ?? defaults.breachCheckEnabled
+        accentColor = try container.decodeIfPresent(String.self, forKey: .accentColor)
         quickCreateDatabaseID = try container.decodeIfPresent(UUID.self, forKey: .quickCreateDatabaseID)
         generator = try container.decodeIfPresent(GeneratorSettings.self, forKey: .generator) ?? defaults.generator
     }
