@@ -24,4 +24,5 @@ Project skills live in `.claude/skills/` (see its README for sources and license
 ## Environment notes
 
 - A SessionStart hook runs `scripts/bootstrap.sh`, so git hooks are active in every Claude session.
+- `flake.nix` defines the dev shell (`nix develop`) for the owner's Mac and Linux; Swift itself comes from Xcode or the Linux toolchain script, not Nix. In this container GitHub archive downloads are blocked, so update `flake.lock` by locking with `git+https` overrides and rewriting the entries to `github:` (same narHash).
 - In Claude cloud sessions (Linux) the same hook runs `scripts/setup-linux-toolchain.sh`, which installs Swift, swift-format, SwiftLint and ShellCheck. The core packages build, test and lint here; the iOS app targets need Xcode on the owner's Mac or macOS CI.

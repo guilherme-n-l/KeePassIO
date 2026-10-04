@@ -15,3 +15,6 @@ Package.resolved.bak
 *.trace
 *.perfetto-trace
 /profiles/
+
+# direnv
+.direnv/

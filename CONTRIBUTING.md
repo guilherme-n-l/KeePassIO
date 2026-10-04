@@ -4,9 +4,9 @@ KeePassIOS is MIT-licensed. Read [PLAN.md](PLAN.md) for the architecture and the
 
 ## Setup
 
-1. Install Xcode (16 or newer) and SwiftLint (`brew install swiftlint`). `swift-format` ships with the Xcode toolchain.
-2. Install Node.js (for `markdownlint-cli2`, run through `npx`) and ShellCheck (`brew install shellcheck`).
-3. Run `scripts/bootstrap.sh` once after cloning. It enables the git hooks in `.githooks/` and the merge policy below.
+1. Install Xcode (26 or newer). It provides `swift`, `swift-format`, `xcodebuild` and `xcrun devicectl`.
+2. Enter the dev shell: `nix develop` (or `direnv allow` once, with the `.envrc`). It provides SwiftLint, ShellCheck, nixfmt, Node.js (for `markdownlint-cli2`), Python and `keepassxc-cli`, plus bpftrace and zlib on Linux, and enables the git hooks. It uses `mkShellNoCC`, so Xcode's SDK and tools are left alone.
+3. Without Nix: install SwiftLint, ShellCheck, Node.js and KeePassXC yourself (`brew install swiftlint shellcheck node keepassxc`) and run `scripts/bootstrap.sh` once to enable the git hooks and the merge policy below.
 
 ## Clean-room rule
 
@@ -14,7 +14,7 @@ KeePassium, KeePassXC and KeePassDX are GPL-licensed. Never copy, translate or p
 
 ## Lint and formatting
 
-- `scripts/lint.sh` runs every check: swift-format, SwiftLint, markdownlint, ShellCheck and the code-comment rule below.
+- `scripts/lint.sh` runs every check: swift-format, SwiftLint, nixfmt, markdownlint, ShellCheck and the code-comment rule below.
 - `scripts/lint.sh --fix` applies formatting fixes first.
 - The pre-commit hook runs the same checks on staged files, and CI runs them on the whole tree. Don't bypass hooks with `--no-verify`.
 - If a tool is missing, the check fails rather than silently skipping.

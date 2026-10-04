@@ -29,7 +29,7 @@ A free, open-source KeePass password manager for iPhone and iPad, written in Swi
 - **App:** open `keepassios.xcodeproj` in Xcode 26 and run the `keepassios` scheme (iOS 18 or later).
 - **Flash to a phone without opening Xcode:** connect the device (paired, Developer Mode on) and run `scripts/flash.sh`. It builds with `xcodebuild`, installs with `xcrun devicectl` and launches the app; `--release`, `--device NAME`, `--no-launch` and `--list` are available. Xcode must be installed (it provides these tools) and signed in to the project's development team once.
 - **Core:** `swift test --package-path Packages/KeePassCore` (macOS or Linux). Interop tests run when `keepassxc-cli` is installed.
-- Run `scripts/bootstrap.sh` once after cloning to enable the git hooks, and see [CONTRIBUTING.md](CONTRIBUTING.md).
+- **Tools:** `nix develop` (or direnv with the included `.envrc`) gives a shell with every linter and test tool and turns on the git hooks; Xcode supplies Swift. See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 
