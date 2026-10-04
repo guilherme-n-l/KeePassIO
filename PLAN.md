@@ -50,6 +50,7 @@ keepassios/                         (repo root)
     KPInbox        encrypted quick-create inbox (HPKE, see 4.1)
     KPObservability  Trace.span, metrics, probe backends (section 6)
   Packages/KeePasApple/             Apple-only package
+    KPAppState     Codable JSON store for non-secret app state in the App Group (replaces SwiftData)
     KPFiles        security-scoped bookmarks, NSFileCoordinator, atomic save, local backups, App Group cache
     KPKeychain     biometric quick unlock (Secure Enclave-wrapped key), Keychain access groups
     KPDiagnostics  MetricKit subscriber, on-device histogram store, export
@@ -70,7 +71,11 @@ Dependencies (all MIT/BSD/Apache/CC0, pinned by exact version):
 
 ### Key design decisions
 - **Swift 6 language mode, strict concurrency.** An open database lives in a `DatabaseSession` actor. Views get `@Observable` snapshots and never touch secrets directly.
-- **No SwiftData for vault content.** The template's SwiftData model is deleted. App metadata (recent files, bookmarks, settings) goes in a small Codable store in the App Group container. Nothing secret is ever written outside the KDBX file.
+- **No SwiftData (or Core Data) anywhere.** The `.kdbx` file *is* the database: KDBXKit loads it into memory, `DatabaseSession` edits it, and saves rewrite it atomically. A second persistent store would duplicate that and risk writing secrets into unencrypted SQLite.
+  - Views bind to `@Observable` snapshots of the open database, not `@Query`.
+  - Non-secret app state (recent files, bookmarks, per-database settings, inbox index, diagnostics histograms) is a few KB. It lives in `KPAppState`: `Codable` structs saved as JSON files in the App Group container, written atomically, with a schema version field for migrations. Extensions read the same files.
+  - Nothing secret is ever written outside a KDBX file or the HPKE-sealed inbox.
+  - Revisit only if profiling shows we need a large persistent search index; even then the index would have to be encrypted.
 - **Secrets hygiene:**
   - Protected fields stay in KDBXKit's `SecureBytes` (locked in memory, zeroed on release) and are decrypted only when shown or copied.
   - Clipboard copies are local-only (no Universal Clipboard) and expire.
@@ -222,6 +227,7 @@ Linux CI enforces the core-only rows (KDF, parse, search, merge, serialize) thro
    - Xcode on the owner's Mac is the primary build.
    - GitHub Actions runs Linux CI for the core packages and macOS CI for the apps.
    - The Claude cloud container is Linux with no Swift toolchain and blocked downloads, so it can only write code, not build it.
+6. **No SwiftData.** Vault data stays in the KDBX file; non-secret app state uses `KPAppState` (section 3).
 
 ## 9b. Build vs. buy: handroll only when necessary
 **Rule:** use a maintained MIT/BSD/Apache/CC0 dependency unless it fails a hard requirement (license, security, extension memory, iOS 18, correctness). Every handrolled component needs a justification in this table.
@@ -235,6 +241,7 @@ Linux CI enforces the core-only rows (KDF, parse, search, merge, serialize) thro
 | gzip, XML | zlib / Foundation (inside KDBXKit) | No |
 | YubiKey challenge-response | YubiKit (Apache-2) | No |
 | QR scanning | VisionKit `DataScannerViewController` | No |
+| App state persistence | `Codable` + `FileManager` (no SwiftData/Core Data, see section 3) | No |
 | Logging, metrics, CLI | swift-log, swift-metrics, swift-argument-parser | No |
 | Tracing | `OSSignposter` + `Trace.span` wrapper + uprobe markers | Thin wrapper only |
 | Biometrics, Keychain, Secure Enclave | LocalAuthentication / Security / CryptoKit | No |
@@ -305,7 +312,7 @@ There are three possible verdicts:
 ## 12. Immediate next steps (M0)
 1. Clean up the template project:
    - Set the deployment target to 18.0 (currently 26.5) and Swift to 6 (currently 5.0).
-   - Remove the SwiftData `Item` and `ContentView` samples.
+   - Remove SwiftData entirely: delete `Item.swift`, the `ModelContainer` in `keepassiosApp.swift`, and the `@Query`/`modelContext` use in `ContentView.swift`; drop the SwiftData import from the test targets.
    - Add an App Group and Keychain access group.
 2. Add `Packages/KeePasCore` (KPModel, KPObservability, kpbench) with KDBXKit as a dependency, plus `linux.yml` and `macos.yml`.
 3. Run the KDBXKit spike (9b) and record the verdict in `docs/adr/0001-kdbx-library.md`.
