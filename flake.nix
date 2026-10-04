@@ -33,6 +33,8 @@
               nodejs # markdownlint-cli2 via npx in scripts/lint.sh
               python3 # scripts/flash.sh, CI helpers
               keepassxc # keepassxc-cli for the KeePassXC interop tests
+              librsvg # rsvg-convert for scripts/make-app-icon.sh
+              imagemagick # scripts/make-app-icon.sh
             ]
             ++ lib.optionals isDarwin [
               swiftlint # swift and swift-format come from Xcode

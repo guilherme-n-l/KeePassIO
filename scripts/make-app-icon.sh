@@ -1,20 +1,36 @@
 #!/usr/bin/env bash
-# Draws the app icon (light, dark and tinted variants) into the asset
-# catalog with ImageMagick, so the artwork is reproducible from source.
+# Renders the app icon (light, dark and tinted variants) into the asset
+# catalog from Design/AppIcon.svg, with rsvg-convert (librsvg) and
+# ImageMagick.
+#
+# The SVG has a green square (#rect1) behind a white glyph. Each variant
+# recolors those two and renders a fully opaque 1024x1024 PNG, as the App
+# Store requires.
 set -euo pipefail
 
-out="$(cd "$(dirname "$0")/.." && pwd)/keepassios/Assets.xcassets/AppIcon.appiconset"
-shield="path 'M 512 176 L 780 276 L 780 520 C 780 690 664 806 512 860 C 360 806 244 690 244 520 L 244 276 Z'"
+root="$(cd "$(dirname "$0")/.." && pwd)"
+source_svg="$root/Design/AppIcon.svg"
+out="$root/keepassios/Assets.xcassets/AppIcon.appiconset"
+work="$(mktemp -d)"
+trap 'rm -rf "$work"' EXIT
 
-# draw BACKGROUND SHIELD_COLOR KEYHOLE_COLOR FILE
-draw() {
-    convert -size 1024x1024 "$1" \
-        -fill "$2" -draw "$shield" \
-        -fill "$3" -draw "circle 512,470 512,392" -draw "polygon 478,500 546,500 572,680 452,680" \
-        -alpha off -depth 8 "$out/$4"
+for tool in rsvg-convert convert; do
+  if ! command -v "$tool" >/dev/null 2>&1; then
+    echo "make-app-icon: $tool not found (nix develop provides it)" >&2
+    exit 1
+  fi
+done
+
+# render BACKGROUND GLYPH FILE
+render() {
+  sed -e "s/opacity:0\.870246;fill:#4fa34f/opacity:1;fill:$1/" \
+    -e "s/fill:#ffffff/fill:$2/g" \
+    "$source_svg" >"$work/icon.svg"
+  rsvg-convert --width 1024 --height 1024 "$work/icon.svg" -o "$work/icon.png"
+  convert "$work/icon.png" -background "$1" -alpha remove -alpha off -depth 8 "$out/$3"
 }
 
-draw "gradient:#2F6BFF-#1636B8" white "#1E4BDB" AppIcon.png
-draw "gradient:#101A3A-#05081A" "#5B8CFF" "#0A1230" AppIcon-Dark.png
-draw "xc:black" "#E6E6E6" black AppIcon-Tinted.png
+render "#4fa34f" "#ffffff" AppIcon.png
+render "#0e1c0e" "#5fbf5f" AppIcon-Dark.png
+render "#000000" "#ffffff" AppIcon-Tinted.png
 echo "Wrote $out"

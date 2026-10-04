@@ -18,6 +18,10 @@ KeePassIOS is MIT-licensed. It includes or depends on the following third-party 
 
 KeePassXC's C64 (Apple logo) is GPL-2.0-or-later and is not included; that icon is drawn with an SF Symbol.
 
+### App icon
+
+`Design/AppIcon.svg`, from which `scripts/make-app-icon.sh` renders the app icon, is the project owner's adaptation of an apple icon from [SVG Repo](https://www.svgrepo.com/). SVG Repo marks its icons as free for commercial use; check the original icon's page for its exact license before redistributing the artwork on its own.
+
 ## Vendored code
 
 ### KDBXKit
