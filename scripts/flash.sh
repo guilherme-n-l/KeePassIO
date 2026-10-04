@@ -83,7 +83,7 @@ if [[ -z "${device_id:-}" ]]; then
 fi
 echo "Device: $device_id"
 
-echo "Building $configuration…"
+echo "Building ${configuration}..."
 xcodebuild build \
   -project keepassios.xcodeproj \
   -scheme keepassios \
@@ -99,11 +99,11 @@ if [[ ! -d "$app" ]]; then
   exit 1
 fi
 
-echo "Installing…"
+echo "Installing..."
 xcrun devicectl device install app --device "$device_id" "$app"
 
 if ((launch)); then
-  echo "Launching…"
+  echo "Launching..."
   xcrun devicectl device process launch --device "$device_id" --terminate-existing "$bundle_id"
 fi
 echo "Done."
