@@ -23,7 +23,7 @@ Project skills live in `.claude/skills/` (see its README for sources and license
 
 ## Owner's setup
 
-- Repositories are bare clones with one worktree per branch (for example `~/repos/KDBXKit` with `fix-…` worktrees inside). Give git commands that fetch into the bare repo and use `git worktree add`, not `git clone`/`checkout`.
+- Repositories live under `$HOME/repos` as bare clones with one worktree per branch (for example `$HOME/repos/KDBXKit` with `fix-…` worktrees inside). Give git commands that fetch into the bare repo and use `git worktree add`, not `git clone`/`checkout`, and write paths with `$HOME`.
 - Files sent with SendUserFile end up in `$HOME/Downloads`; write instructions with that path.
 
 ## Environment notes
