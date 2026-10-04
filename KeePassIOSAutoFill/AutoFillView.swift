@@ -21,7 +21,9 @@ struct AutoFillView: View {
     }
 
     @ViewBuilder private var content: some View {
-        if let loadError = model.loadError {
+        if model.isFinished {
+            Color.clear
+        } else if let loadError = model.loadError {
             ContentUnavailableView(
                 "Can't Open Databases",
                 systemImage: "exclamationmark.triangle",
@@ -50,6 +52,7 @@ struct AutoFillView: View {
 private struct EntryPickerView: View {
     @Environment(AutoFillModel.self) private var model
     @State private var query = ""
+    @State private var isAdding = false
 
     var body: some View {
         List {
@@ -81,6 +84,21 @@ private struct EntryPickerView: View {
         .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search")
         .navigationTitle(model.selected?.name ?? "")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button {
+                    isAdding = true
+                } label: {
+                    Label("New Entry", systemImage: "plus")
+                }
+                .accessibilityIdentifier("autofill.newEntry")
+            }
+        }
+        .sheet(isPresented: $isAdding) {
+            NavigationStack {
+                NewAutoFillEntryView()
+            }
+        }
     }
 
     private func row(_ entry: Entry) -> some View {
@@ -96,6 +114,88 @@ private struct EntryPickerView: View {
                         .foregroundStyle(.secondary)
                 }
             }
+        }
+    }
+}
+
+/// A new entry for the site being filled, saved to the database and, when
+/// filling a password, filled right away.
+private struct NewAutoFillEntryView: View {
+    @Environment(AutoFillModel.self) private var model
+    @Environment(\.dismiss) private var dismiss
+    @State private var title = ""
+    @State private var userName = ""
+    @State private var password = AutoFillModel.generatedPassword()
+    @State private var url = ""
+    @State private var isSaving = false
+    @State private var errorMessage: String?
+
+    var body: some View {
+        Form {
+            Section {
+                TextField("Title", text: $title)
+                TextField("User Name", text: $userName)
+                    .textContentType(.username)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                HStack {
+                    TextField("Password", text: $password)
+                        .font(.body.monospaced())
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                    Button {
+                        password = AutoFillModel.generatedPassword()
+                    } label: {
+                        Image(systemName: "arrow.clockwise")
+                    }
+                    .buttonStyle(.borderless)
+                    .accessibilityLabel("New Password")
+                }
+                TextField("Website", text: $url)
+                    .keyboardType(.URL)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+            } footer: {
+                if let errorMessage {
+                    Text(errorMessage).foregroundStyle(.red)
+                } else if model.mode == .password {
+                    Text("Saved to \(model.selected?.name ?? "the database") and filled in.")
+                }
+            }
+        }
+        .navigationTitle("New Entry")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .cancellationAction) {
+                Button("Cancel") { dismiss() }
+            }
+            ToolbarItem(placement: .confirmationAction) {
+                if isSaving {
+                    ProgressView()
+                } else {
+                    Button(model.mode == .password ? "Save and Fill" : "Save", action: save)
+                        .disabled(title.isEmpty && userName.isEmpty)
+                }
+            }
+        }
+        .onAppear {
+            let defaults = model.newEntryDefaults
+            if title.isEmpty { title = defaults.title }
+            if url.isEmpty { url = defaults.url }
+        }
+    }
+
+    private func save() {
+        isSaving = true
+        errorMessage = nil
+        Task {
+            do {
+                try await model.addEntry(title: title, userName: userName, password: password, url: url)
+                dismiss()
+            } catch {
+                errorMessage = String(localized: "Couldn't save the entry.")
+            }
+            isSaving = false
         }
     }
 }

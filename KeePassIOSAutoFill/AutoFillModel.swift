@@ -1,5 +1,6 @@
 import Foundation
 import KPAppState
+import KPGenerator
 import KPKDBX
 import KPModel
 import KPOTP
@@ -35,6 +36,9 @@ final class AutoFillModel {
     private(set) var selected: DatabaseReference?
     private(set) var session: DatabaseSession?
     private(set) var isLoaded = false
+    /// Set once the request is answered, so the sheet doesn't show the
+    /// unlock screen (and offer Face ID) while it closes.
+    private(set) var isFinished = false
     private(set) var loadError: String?
 
     private let codec = KDBXCodec()
@@ -74,11 +78,16 @@ final class AutoFillModel {
         selected = reference
         let original = BookmarkedFile(bookmark: reference.bookmark, displayName: reference.displayName)
         // Extensions often can't reach files held by other apps' File
-        // Providers; the app keeps a copy in the App Group for that case.
+        // Providers: reads fall back to copies in the App Group, and saves
+        // to a pending copy the app merges later.
         let file: any DatabaseFile =
-            SharedFiles.databaseCache(for: reference.id).map {
-                CachedDatabaseFile(original: original, cache: $0, fallsBackToCache: true)
-            } ?? original
+            if let cache = SharedFiles.databaseCache(for: reference.id),
+                let pending = SharedFiles.pendingChanges(for: reference.id)
+            {
+                ExtensionDatabaseFile(original: original, cache: cache, pending: pending)
+            } else {
+                original
+            }
         session = DatabaseSession(
             file: file,
             codec: codec,
@@ -140,12 +149,42 @@ final class AutoFillModel {
             guard let otp = Self.otp(of: entry) else { return }
             completion = .oneTimeCode(otp.code(at: Date()))
         }
+        finish(completion)
+    }
+
+    func cancel() {
+        finish(.cancelled)
+    }
+
+    private func finish(_ completion: Completion) {
+        isFinished = true
         session?.lock()
         complete(completion)
     }
 
-    func cancel() {
-        session?.lock()
-        complete(.cancelled)
+    /// The site being filled, for a new entry's title and URL.
+    var newEntryDefaults: (title: String, url: String) {
+        let identifier = serviceIdentifiers.first ?? ""
+        let host = URL(string: identifier)?.host() ?? identifier
+        let title = host.hasPrefix("www.") ? String(host.dropFirst(4)) : host
+        return (title, identifier.contains("://") || identifier.isEmpty ? identifier : "https://\(identifier)")
+    }
+
+    /// Adds an entry and saves the database. When filling a password, the
+    /// new entry is filled right away.
+    func addEntry(title: String, userName: String, password: String, url: String) async throws(SessionError) {
+        guard let session else { throw .locked }
+        var entry = session.newEntry(title: title, userName: userName, password: SecretString(password))
+        entry.url = url
+        try session.addEntry(entry)
+        try await session.save()
+        if mode == .password {
+            choose(entry)
+        }
+    }
+
+    /// A strong random password for new entries.
+    static func generatedPassword() -> String {
+        (try? PasswordGenerator().password(length: 20)) ?? ""
     }
 }

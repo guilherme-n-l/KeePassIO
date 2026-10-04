@@ -140,6 +140,23 @@ final class AppModel {
         return CachedDatabaseFile(original: file, cache: cache, fallsBackToCache: false)
     }
 
+    /// Brings in entries AutoFill saved while it couldn't reach the
+    /// database file, then deletes its copy once they're saved here.
+    func mergePendingChanges(for id: UUID, into session: DatabaseSession) async {
+        guard let pending = SharedFiles.pendingChanges(for: id),
+            FileManager.default.fileExists(atPath: pending.url.path)
+        else { return }
+        do {
+            try await session.mergeChanges(from: pending)
+            await save(session)
+            if !session.hasUnsavedChanges {
+                try? FileManager.default.removeItem(at: pending.url)
+            }
+        } catch {
+            errorMessage = String(localized: "Changes made in AutoFill couldn't be merged: \(error.userMessage)")
+        }
+    }
+
     /// Remembers (or, with nil, forgets) which key file a database uses.
     func setKeyFileBookmark(_ bookmark: Data?, for id: UUID) async {
         state =

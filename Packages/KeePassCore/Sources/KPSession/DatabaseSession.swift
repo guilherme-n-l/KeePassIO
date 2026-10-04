@@ -35,7 +35,7 @@ public final class DatabaseSession {
     public let file: any DatabaseFile
     private let codec: any DatabaseCodec
     private let memoryLimit: UInt64?
-    private let clock: @Sendable () -> Date
+    let clock: @Sendable () -> Date
     private var key: CompositeKey?
     /// The content as last read from or written to the file: the common
     /// base for three-way merges.
@@ -172,45 +172,6 @@ public final class DatabaseSession {
         try edit { database in database.emptyRecycleBin(at: now) }
     }
 
-    /// Sets an entry's custom icon (PNG data), reusing an identical icon
-    /// already in the database so repeated downloads don't pile up copies.
-    public func setCustomIcon(_ imageData: Data, forEntry id: UUID) throws(SessionError) {
-        try setIcon(.newCustom(imageData), forEntry: id)
-    }
-
-    public func setIcon(_ icon: IconChoice, forEntry id: UUID) throws(SessionError) {
-        let now = clock()
-        try edit { database in
-            guard var entry = database.entry(withID: id) else { throw EditError.entryNotFound(id) }
-            (entry.iconID, entry.customIconID) = Self.resolve(icon, current: entry.iconID, in: &database)
-            try database.update(entry, at: now)
-        }
-    }
-
-    public func setIcon(_ icon: IconChoice, forGroup id: UUID) throws(SessionError) {
-        let now = clock()
-        try edit { database in
-            guard var group = database.group(withID: id) else { throw EditError.groupNotFound(id) }
-            (group.iconID, group.customIconID) = Self.resolve(icon, current: group.iconID, in: &database)
-            try database.updateGroupProperties(group, at: now)
-        }
-    }
-
-    /// The standard icon ID and custom icon ID an item gets for `icon`,
-    /// adding new custom icon data to the database (once).
-    private static func resolve(_ icon: IconChoice, current: Int, in database: inout Database) -> (Int, UUID?) {
-        switch icon {
-        case .standard(let iconID):
-            return (iconID, nil)
-        case .custom(let customID):
-            return (current, customID)
-        case .newCustom(let data):
-            let customID = database.meta.customIcons.first { $0.value == data }?.key ?? UUID()
-            database.meta.customIcons[customID] = data
-            return (current, customID)
-        }
-    }
-
     /// Creates an entry stamped with the current time.
     public func newEntry(title: String = "", userName: String = "", password: SecretString = .empty) -> Entry {
         var entry = Entry(times: Times(creation: clock()))
@@ -220,7 +181,8 @@ public final class DatabaseSession {
         return entry
     }
 
-    private func edit(_ change: (inout Database) throws -> Void) throws(SessionError) {
+    /// Applies a change to the open database and marks it unsaved.
+    func edit(_ change: (inout Database) throws -> Void) throws(SessionError) {
         guard var database else { throw .locked }
         do {
             try change(&database)
@@ -267,6 +229,31 @@ public final class DatabaseSession {
         guard !result.report.isEmpty else { return }
         install(result.merged)
         hasUnsavedChanges = true
+    }
+
+    /// Merges in another copy of this database (same master key), such as
+    /// changes an extension saved while it couldn't reach the original.
+    /// The result is unsaved; call `save()` to write it.
+    public func mergeChanges(from other: any DatabaseFile) async throws(SessionError) {
+        guard let key else { throw .locked }
+        do {
+            let (data, _) = try await other.read()
+            let decoded = try await codec.decode(data, key: key, memoryLimit: memoryLimit)
+            guard let database else { throw SessionError.locked }
+            // No common base: the copy may predate edits made here since,
+            // and a three-way merge would read those as deleted by the
+            // copy. Without a base nothing is deleted except through the
+            // database's own deletion records.
+            let result = Merger.merge(local: database, remote: decoded.database, base: nil)
+            lastMergeReport = result.report
+            guard !result.report.isEmpty else { return }
+            install(result.merged)
+            hasUnsavedChanges = true
+        } catch let error as SessionError {
+            throw error
+        } catch {
+            throw SessionError(error)
+        }
     }
 
     private func mergeFromDisk(key: CompositeKey) async throws(SessionError) {

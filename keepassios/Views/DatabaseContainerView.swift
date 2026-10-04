@@ -19,7 +19,10 @@ struct DatabaseContainerView: View {
         }
         .onChange(of: session.state) { _, state in
             if state == .unlocked {
-                Task { await model.markOpened(reference.id) }
+                Task {
+                    await model.markOpened(reference.id)
+                    await model.mergePendingChanges(for: reference.id, into: session)
+                }
             }
         }
         .onChange(of: session.hasUnsavedChanges) { _, unsaved in

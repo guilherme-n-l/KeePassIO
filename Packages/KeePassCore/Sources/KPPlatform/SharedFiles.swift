@@ -9,6 +9,22 @@
         /// Where the copy of a database's encrypted file is kept for the
         /// AutoFill extension (see `CachedDatabaseFile`).
         public static func databaseCache(for databaseID: UUID) -> LocalDatabaseFile? {
+            file(named: databaseID.uuidString)
+        }
+
+        /// Changes AutoFill saved while it couldn't reach the original (see
+        /// `ExtensionDatabaseFile`); the app merges and deletes them.
+        public static func pendingChanges(for databaseID: UUID) -> LocalDatabaseFile? {
+            file(named: "\(databaseID.uuidString).pending")
+        }
+
+        public static func removeDatabaseCache(for databaseID: UUID) {
+            for file in [databaseCache(for: databaseID), pendingChanges(for: databaseID)].compactMap(\.self) {
+                try? FileManager.default.removeItem(at: file.url)
+            }
+        }
+
+        private static func file(named name: String) -> LocalDatabaseFile? {
             guard
                 let container = FileManager.default.containerURL(
                     forSecurityApplicationGroupIdentifier: appGroup
@@ -17,14 +33,9 @@
             let url =
                 container
                 .appendingPathComponent("DatabaseCache", isDirectory: true)
-                .appendingPathComponent(databaseID.uuidString)
+                .appendingPathComponent(name)
                 .appendingPathExtension("kdbx")
             return LocalDatabaseFile(url: url)
-        }
-
-        public static func removeDatabaseCache(for databaseID: UUID) {
-            guard let cache = databaseCache(for: databaseID) else { return }
-            try? FileManager.default.removeItem(at: cache.url)
         }
     }
 
