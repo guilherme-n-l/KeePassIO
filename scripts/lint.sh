@@ -23,7 +23,7 @@ for arg in "$@"; do
 done
 
 # Vendored third-party files keep their upstream formatting and are not linted.
-vendored='^\.claude/skills/[^/]+/'
+vendored='^(\.claude/skills/[^/]+/|Vendor/)'
 
 list_files() {
   local pattern="$1"

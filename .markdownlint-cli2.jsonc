@@ -1,6 +1,6 @@
 {
   // Vendored third-party skills keep their upstream formatting.
-  "ignores": [".claude/skills/*/**"],
+  "ignores": [".claude/skills/*/**", "Vendor/**"],
   "config": {
     "default": true,
     // Long lines are normal in prose and tables.
