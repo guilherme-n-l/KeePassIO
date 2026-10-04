@@ -6,7 +6,12 @@ import SwiftUI
 struct AccentColorSection: View {
     @Environment(AppModel.self) private var model
 
-    private var selected: String? { model.settings.accentColor }
+    /// The stored choice, with the default's own value counted as the
+    /// default.
+    private var selected: String? {
+        let stored = model.settings.accentColor?.uppercased()
+        return stored == AccentColors.defaultHex ? nil : stored
+    }
 
     var body: some View {
         Section("Appearance") {
