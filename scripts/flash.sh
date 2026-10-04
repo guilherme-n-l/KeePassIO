@@ -84,14 +84,26 @@ fi
 echo "Device: $device_id"
 
 echo "Building ${configuration}..."
-xcodebuild build \
+build_log="$(mktemp)"
+trap 'rm -f "$devices_json" "$build_log"' EXIT
+if ! xcodebuild build \
   -project keepassios.xcodeproj \
   -scheme keepassios \
   -configuration "$configuration" \
   -destination "id=$device_udid" \
   -derivedDataPath "$derived_data" \
   -allowProvisioningUpdates \
-  -quiet
+  -quiet 2>&1 | tee "$build_log"; then
+  # Signing failures are the usual first-run problem; say what to do.
+  if grep -q "PLA Update available" "$build_log"; then
+    echo "flash: Apple has a new Program License Agreement. The account holder must accept it at" >&2
+    echo "       https://developer.apple.com/account before Xcode can create provisioning profiles." >&2
+  elif grep -q "doesn't include the App Groups capability\|No Account for Team\|No profiles for" "$build_log"; then
+    echo "flash: Xcode couldn't create a provisioning profile. Open Xcode > Settings > Accounts once and" >&2
+    echo "       make sure the Apple ID for the project's team is signed in, then run this again." >&2
+  fi
+  exit 1
+fi
 
 app="$derived_data/Build/Products/$configuration-iphoneos/keepassios.app"
 if [[ ! -d "$app" ]]; then
