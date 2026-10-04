@@ -1,6 +1,6 @@
-# KeePasIOS: Product & Engineering Plan
+# KeePassIOS: Product & Engineering Plan
 
-A native SwiftUI KeePass client for iPhone and iPad (macOS later) that matches KeePassium's feature set with **no paywall**, fast entry creation, first-class database merge, and built-in performance observability.
+A native SwiftUI KeePass client for iPhone and iPad (iOS/iPadOS only) that matches KeePassium's feature set with **no paywall**, fast entry creation, first-class database merge, and built-in performance observability.
 
 **Status:** planning. `main` holds the Xcode template project (`keepassios.xcodeproj`, SwiftData sample code). No product code yet.
 
@@ -19,7 +19,7 @@ A native SwiftUI KeePass client for iPhone and iPad (macOS later) that matches K
 
 **Non-goals for v1**
 - Cloud storage SDKs, WebDAV or SFTP. Files are local, opened through the Files app (section 9).
-- A sync server, browser extension, Android app or Apple Watch app.
+- A sync server, browser extension, Android, macOS or Apple Watch app.
 - KDB (KeePass 1.x) import, Twofish databases, writing KDBX 3.1 (deferred; see 9b).
 
 ## 2. Reference repos (behavior only, no code)
@@ -41,7 +41,7 @@ UI-free core packages build and test on **Linux** (fast CI, and real eBPF profil
 ```
 keepassios/                         (repo root)
   keepassios.xcodeproj              existing project; targets below are added to it
-  Packages/KeePasCore/              one SwiftPM package, several targets:
+  Packages/KeePassCore/              one SwiftPM package, several targets:
     KPModel        thin domain layer over KDBXKit: Database, Group, Entry, History, DeletedObjects, Templates, Tags
     KPMerge        merge engine, conflict model, dry-run diff        (handrolled: nothing exists)
     KPSearch       in-memory index built after unlock, filters, password audit (weak/reused, local only)
@@ -49,13 +49,13 @@ keepassios/                         (repo root)
     KPGenerator    password and passphrase generator (wordlist: EFF, CC-BY)
     KPInbox        encrypted quick-create inbox (HPKE, see 4.1)
     KPObservability  Trace.span, metrics, probe backends (section 6)
-  Packages/KeePasApple/             Apple-only package
+  Packages/KeePassApple/             Apple-only package
     KPAppState     Codable JSON store for non-secret app state in the App Group (replaces SwiftData)
     KPFiles        security-scoped bookmarks, NSFileCoordinator, atomic save, local backups, App Group cache
     KPKeychain     biometric quick unlock (Secure Enclave-wrapped key), Keychain access groups
     KPDiagnostics  MetricKit subscriber, on-device histogram store, export
   App targets (in the Xcode project):
-    keepassios                  SwiftUI app (iPhone, iPad; macOS native target in M5)
+    keepassios                  SwiftUI app (iPhone, iPad)
     AutoFill                    ASCredentialProviderViewController: passwords, passkeys, OTP codes, saving credentials
     QuickCreateShare            share extension: URL/text into a new entry
     Widgets                     App Intents, Control Center control, Lock Screen widget, Action Button
@@ -146,8 +146,8 @@ Each milestone ends with a TestFlight build (from M1) plus green CI and passing 
 | **M1 Read-only app** | 3–6 | File picker + bookmarks, unlock (password + key file), browse, search, TOTP, attachments, biometric quick unlock, auto-lock | Opens every corpus database; meets the unlock and search budgets |
 | **M2 Editing + quick create** | 7–10 | Create/edit/move/delete, history, recycle bin, generator, templates, atomic save + backups, external-change detection, App Intents, share extension, inbox | Edit, save and re-open round-trips losslessly in KeePassXC |
 | **M3 AutoFill + merge** | 11–15 | AutoFill (passwords, OTP, passkeys, save credential), App Group cache, `KPMerge` + review UI, YubiKey | Property tests green; AutoFill within memory and latency budgets |
-| **M4 Polish + beta** | 16–19 | iPad layout and keyboard shortcuts, widgets, password audit, CSV import, localization (en, pt-BR first), accessibility audit, threat model review | Public TestFlight |
-| **M5 1.0 + macOS** | 20+ | App Store release, native macOS target, external security review | Shipped |
+| **M4 Polish + beta** | 16–19 | iPad layout and keyboard shortcuts, widgets, password audit, CSV import, localization infrastructure check (pseudo-locale pass; English only), accessibility audit, threat model review | Public TestFlight |
+| **M5 1.0** | 20+ | App Store release, external security review | Shipped |
 
 ## 6. Observability and profiling (the "eBPF-like" part)
 
@@ -222,12 +222,20 @@ Linux CI enforces the core-only rows (KDF, parse, search, merge, serialize) thro
    - Files are opened with the system picker and kept with bookmarks.
    - Whatever location the user picks in Files, including another app's File Provider, works transparently.
    - We ship no cloud SDKs.
-4. **Name: KeePasIOS.** The bundle ID is `dev.guilhermenl.keepassios`, taken from the existing project.
+4. **Name: KeePassIOS** (display name), repo `keepassios`. Bundle ID `dev.guilhermenl.keepassios` (from the existing project); App Group `group.dev.guilhermenl.keepassios`; extensions use `dev.guilhermenl.keepassios.<Extension>`. Paid Apple Developer account available; the team ID is set in Xcode by the owner, never committed in plain text beyond the project's `DEVELOPMENT_TEAM`.
+   - App Store review sometimes rejects names that lean on another product's name; "KeePass" is used by KeePassium, KeePassXC and KeePassDX, so risk is low, but have a fallback name ready before submission.
 5. **Build environment:**
-   - Xcode on the owner's Mac is the primary build.
-   - GitHub Actions runs Linux CI for the core packages and macOS CI for the apps.
+   - Xcode on the owner's Mac is the primary build and the place for device profiling (Instruments).
+   - GitHub Actions runs Linux CI for the core packages and macOS CI for the apps. If the repo stays private and macOS minutes cost too much, macOS CI drops to nightly and PRs rely on local Xcode runs.
    - The Claude cloud container is Linux with no Swift toolchain and blocked downloads, so it can only write code, not build it.
 6. **No SwiftData.** Vault data stays in the KDBX file; non-secret app state uses `KPAppState` (section 3).
+7. **Platforms: iOS and iPadOS only.** No macOS, Mac Catalyst, "Designed for iPad" on Mac, visionOS or watchOS targets. (iPad apps can run on Apple silicon Macs; we opt out in App Store Connect to avoid supporting an untested platform.)
+8. **Language: English only at launch, built for easy expansion.**
+   - All user-facing text in String Catalogs (`Localizable.xcstrings`, one per target, and `AppShortcuts.xcstrings` for App Intents); no hardcoded strings. SwiftUI `Text("…")` literals and `LocalizedStringResource`/`String(localized:)` everywhere else, with comments for translators.
+   - Formatting via `FormatStyle` (dates, numbers, relative times) and plurals via the catalog's plural variants, never string concatenation.
+   - Layouts use leading/trailing and tolerate 40% longer text; right-to-left checked once with the pseudo-locale.
+   - CI runs the UI smoke tests with a pseudo-language (accented and lengthened strings) and a lint that flags non-localized `Text` literals in non-test code, so adding a language later is translation work only.
+   - Password generator wordlists are per-locale resources (English EFF list first).
 
 ## 9b. Build vs. buy: handroll only when necessary
 **Rule:** use a maintained MIT/BSD/Apache/CC0 dependency unless it fails a hard requirement (license, security, extension memory, iOS 18, correctness). Every handrolled component needs a justification in this table.
@@ -275,7 +283,7 @@ There are three possible verdicts:
   - Assembly or intrinsics only come from inside an already-chosen library. We never write them by hand.
 - **Likely candidates:** Argon2 (the RustCrypto `argon2` crate, if the C version underperforms on device), search indexing at large scale, and merge diffing of very large databases.
 - **Integration:**
-  - Build a static XCFramework for device, simulator and macOS, and expose it through UniFFI (or cbindgen and a C ABI).
+  - Build a static XCFramework for iOS device and simulator (plus Linux static lib for CI), and expose it through UniFFI (or cbindgen and a C ABI).
   - Zeroize secrets with the `zeroize` crate, and keep unsafe code to a minimum.
   - Keep a Swift reference implementation alongside as a differential-test oracle.
   - Rust crates must be MIT or Apache. `cargo-deny` and `cargo-audit` run in CI.
@@ -314,7 +322,7 @@ There are three possible verdicts:
    - Set the deployment target to 18.0 (currently 26.5) and Swift to 6 (currently 5.0).
    - Remove SwiftData entirely: delete `Item.swift`, the `ModelContainer` in `keepassiosApp.swift`, and the `@Query`/`modelContext` use in `ContentView.swift`.
    - Add an App Group and Keychain access group.
-2. Add `Packages/KeePasCore` (KPModel, KPObservability, kpbench) with KDBXKit as a dependency, plus `linux.yml` and `macos.yml`.
+2. Add `Packages/KeePassCore` (KPModel, KPObservability, kpbench) with KDBXKit as a dependency, plus `linux.yml` and `macos.yml`.
 3. Run the KDBXKit spike (9b) and record the verdict in `docs/adr/0001-kdbx-library.md`.
 4. Add `Trace.span`, the uprobe markers and `Tools/bpf/spans.bt`, then profile `kpbench open` on the corpus under bpftrace (Linux) and Instruments (Mac).
 5. Start M1.
