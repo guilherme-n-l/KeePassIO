@@ -1,0 +1,11 @@
+{
+  "config": {
+    "default": true,
+    // Long lines are normal in prose and tables.
+    "MD013": false,
+    // Tables and lists sometimes repeat headings like "Risks".
+    "MD024": { "siblings_only": true },
+    // Compact separator rows (|---|) are fine.
+    "MD060": false
+  }
+}

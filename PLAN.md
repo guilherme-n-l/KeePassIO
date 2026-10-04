@@ -8,7 +8,8 @@ A native SwiftUI KeePass client for iPhone and iPad (iOS/iPadOS only) that match
 
 ## 1. Goals and non-goals
 
-**Goals**
+### Goals
+
 - Read and write **KDBX 4.0/4.1 only**. Older formats (KDBX 3.1, KDB 1.x, Twofish cipher) are not supported: opening one shows a clear message explaining how to convert it with KeePassXC (Database Settings → Security → Encryption → Database format: KDBX 4, and pick AES-256 or ChaCha20 instead of Twofish).
 - Everything free: no subscription, no feature gating, no "premium" code paths. Funding by donations or GitHub Sponsors only.
 - **Quick create:** a new entry in under 3 taps and 5 seconds, from anywhere in the system. Creating an entry always requires unlocking (biometric quick unlock keeps that to one Face ID glance); nothing is ever written to a vault without an unlock.
@@ -17,7 +18,8 @@ A native SwiftUI KeePass client for iPhone and iPad (iOS/iPadOS only) that match
 - **Observability** built in from the first commit (section 6).
 - **Privacy:** no network access by default, no analytics SDKs, App Store privacy label "Data Not Collected".
 
-**Non-goals for v1**
+### Non-goals for v1
+
 - Cloud storage SDKs, WebDAV or SFTP. Files are local, opened through the Files app (section 9).
 - A sync server, browser extension, Android, macOS or Apple Watch app.
 - KDBX 3.1, KDB (KeePass 1.x) and Twofish databases, in any version (not deferred: out of scope).
@@ -39,7 +41,7 @@ All three are GPL. We are MIT, so we read them for behavior and UX and never cop
 
 UI-free core packages build and test on **Linux** (fast CI, and real eBPF profiling, section 6). Apple-only code lives in the app and extension targets.
 
-```
+```text
 keepassios/                         (repo root)
   keepassios.xcodeproj              existing project; targets below are added to it
   Packages/KeePassCore/              one SwiftPM package, several targets:
@@ -70,6 +72,7 @@ Dependencies (all MIT/BSD/Apache/CC0, pinned by exact version):
 [KDBXKit](https://github.com/shadone/KDBXKit) (format, crypto, SecureBytes), swift-crypto, swift-log, swift-metrics, swift-argument-parser, swift-testing, [YubiKit](https://github.com/Yubico/yubikit-ios) (Apache-2, for hardware keys).
 
 ### Key design decisions
+
 - **Swift 6 language mode, strict concurrency.** An open database lives in a `DatabaseSession` actor. Views get `@Observable` snapshots and never touch secrets directly.
 - **No SwiftData (or Core Data) anywhere.** The `.kdbx` file *is* the database: KDBXKit loads it into memory, `DatabaseSession` edits it, and saves rewrite it atomically. A second persistent store would duplicate that and risk writing secrets into unencrypted SQLite.
   - Views bind to `@Observable` snapshots of the open database, not `@Query`.
@@ -94,6 +97,7 @@ Dependencies (all MIT/BSD/Apache/CC0, pinned by exact version):
 ## 4. Features
 
 ### 4.1 Quick create (differentiator)
+
 - **Entry points:**
   - App Intent "New KeePass entry", available through Siri, Shortcuts, the Action Button, a Control Center control and a Lock Screen widget.
   - The share extension (from Safari or any app; prefills title and URL).
@@ -107,7 +111,9 @@ Dependencies (all MIT/BSD/Apache/CC0, pinned by exact version):
 - **Target group:** a "Quick add" group per database, configurable.
 
 ### 4.2 Database merge (differentiator)
+
 Built on KeePass semantics: UUID identity, `LastModificationTime`, `History`, `DeletedObjects`, `LocationChanged`.
+
 - **Pure function:** `merge(local, remote, base?) -> MergePlan`, then `apply(plan)`.
   - `base` is the last version this device saved, kept in local backups, so we get a real three-way merge most of the time.
   - Without a base, it falls back to a two-way merge by timestamps, the same way KeePassXC does.
@@ -126,6 +132,7 @@ Built on KeePass semantics: UUID identity, `LastModificationTime`, `History`, `D
   - A fuzzed merge harness.
 
 ### 4.3 Core feature checklist (all free)
+
 - **Unlocking:**
   - Password, key file, YubiKey challenge-response (NFC and USB-C via YubiKit), or any combination.
   - Biometric quick unlock with a configurable expiry.
@@ -163,6 +170,7 @@ Each milestone ends with a TestFlight build (from M1) plus green CI and passing 
 | **F. One instrumentation API** | `KPObservability` routes each span to the platform's backend | One call site, every tool |
 
 ### 6.1 How the Linux eBPF probes work (no C needed)
+
 - On Linux, each `Trace.span` begin and end calls one of two tiny exported functions, `kp_probe_begin(id, arg)` and `kp_probe_end(id, arg)`. They are pure Swift, `@_cdecl`, and `@inline(never)`.
 - bpftrace attaches **uprobes** to those stable symbols. The span ID is a small integer from a generated enum, so the mapping is stable and readable.
 - `Tools/bpf/` ships ready scripts:
@@ -175,6 +183,7 @@ Each milestone ends with a TestFlight build (from M1) plus green CI and passing 
 - If uprobes on Swift symbols prove unreliable, fall back to USDT via the Rust `usdt` crate, following the Rust-over-C policy in 9c.
 
 ### 6.2 Span catalog (initial)
+
 - **Unlock:** `unlock.total`, `kdf.argon2`, `kdf.aes`, `kdbx.header`, `kdbx.decrypt`, `kdbx.inflate`, `kdbx.xml`
 - **Search:** `index.build`, `search.query`
 - **Merge:** `merge.plan`, `merge.apply`
@@ -184,6 +193,7 @@ Each milestone ends with a TestFlight build (from M1) plus green CI and passing 
 - **App:** `app.launch`, `ui.firstFrame`
 
 ### 6.3 Privacy rules for telemetry
+
 - Spans carry only sizes, counts and durations, never titles, URLs, usernames or field contents.
 - `os.Logger` interpolations default to `.private`. A CI lint (SwiftLint custom rule) fails the build if entry fields are logged.
 - `kpbench --trace out.json` writes Perfetto/Chrome trace format, viewable at ui.perfetto.dev.
@@ -205,6 +215,7 @@ Each milestone ends with a TestFlight build (from M1) plus green CI and passing 
 Linux CI enforces the core-only rows (KDF, parse, search, merge, serialize) through `kpbench` baselines. macOS CI enforces the rest on the simulator, and an optional nightly job runs on a real device.
 
 ## 8. Testing and CI
+
 - **Unit and property tests:** swift-testing for all core targets. Property tests for merge, the generator and OTP. RFC test vectors for TOTP.
 - **Interop corpus:** KDBX 4.0/4.1 files covering each supported cipher (AES-256, ChaCha20) and KDF (AES-KDF, Argon2d, Argon2id), plus KDBX 3.1/KDB/Twofish files to check they are rejected with the right message, key files, history-heavy and attachment-heavy files, 10k+ entries, and corrupted or truncated files. Generated by script with `keepassxc-cli`, not hand-committed binaries.
 - **Fuzzing:** libFuzzer on Linux for KDBX input and merge. Short runs on each PR, 1 hour nightly.
@@ -218,6 +229,7 @@ Linux CI enforces the core-only rows (KDF, parse, search, merge, serialize) thro
 - **Static checks:** SwiftLint, swift-format, dependency license check.
 
 ## 9. Decisions (resolved)
+
 1. **License: MIT.** The work is clean-room. We read specs and observe the GPL apps' behaviour, never copy their code. Dependencies must be MIT/BSD/Apache/CC0.
 2. **Minimum iOS: 18.** This lets us use KDBXKit without forking, and the AutoFill save-credential and passkey APIs become baseline.
 3. **Storage: local files through the Files app only.**
@@ -246,6 +258,7 @@ Linux CI enforces the core-only rows (KDF, parse, search, merge, serialize) thro
 14. **Repo: public.** Adds `SECURITY.md` (private vulnerability reporting through GitHub security advisories, not public issues), `CONTRIBUTING.md` (clean-room rule: no code from GPL KeePass clients), issue templates that tell reporters to attach diagnostics exports and never real databases or passwords, and Dependabot for Swift packages and GitHub Actions.
 
 ## 9b. Build vs. buy: handroll only when necessary
+
 **Rule:** use a maintained MIT/BSD/Apache/CC0 dependency unless it fails a hard requirement (license, security, extension memory, iOS 18, correctness). Every handrolled component needs a justification in this table.
 
 | Need | Use | Handroll? |
@@ -269,6 +282,7 @@ Linux CI enforces the core-only rows (KDF, parse, search, merge, serialize) thro
 | **Merge review UI, quick-create flows, diagnostics** | SwiftUI | Yes (product code) |
 
 **KDBXKit spike (M0, first task).** KDBXKit has a single maintainer and low adoption, and it has no merge or history API. The spike checks seven things:
+
 1. Lossless round-trip of unknown XML, custom data, history and attachments.
 2. Memory and latency against the AutoFill budgets.
 3. Whether its model exposes enough for merge (timestamps, `LocationChanged`, `DeletedObjects`, history).
@@ -278,11 +292,13 @@ Linux CI enforces the core-only rows (KDF, parse, search, merge, serialize) thro
 7. Code quality and test coverage, since we're betting on it.
 
 There are three possible verdicts:
+
 - **(a)** Depend on a pinned version (expected).
 - **(b)** Fork it under BSD-2 with attribution and send patches upstream.
 - **(c)** Last resort: write our own reader and writer on CryptoKit plus the Argon2 reference C.
 
 ## 9c. Lower-level languages (only when profiling demands it)
+
 - **When:** Swift is the default. Drop lower only when a profile from section 6 shows a hot path missing its section 7 budget after normal Swift optimization.
 - **Order of preference: Rust, then C, then assembly.**
   - C is only for vetted existing code we don't rewrite, such as the Argon2 reference implementation inside KDBXKit.
@@ -297,6 +313,7 @@ There are three possible verdicts:
 - **Observability:** Rust code emits the same spans, through a callback into `Trace` or the `usdt` crate on Linux.
 
 ## 10. Security plan
+
 - **Threat model** in `docs/threat-model.md`, covering:
   - a stolen locked or unlocked device
   - a malicious database file
@@ -314,6 +331,7 @@ There are three possible verdicts:
 - **App Store:** password managers use standard cryptography, so the export compliance answer is "exempt". Set `ITSAppUsesNonExemptEncryption = NO`, and confirm with Apple's guidance at submission.
 
 ## 11. Risks
+
 | Risk | Mitigation |
 |---|---|
 | KDBXKit is abandoned or has bugs | Pin the version; the spike's verdict (b) is to fork it; the interop corpus catches regressions |
@@ -324,7 +342,8 @@ There are three possible verdicts:
 | Building only through CI is slow | Develop on a Mac; keep Linux core tests fast |
 
 ## 12. Immediate next steps (M0)
-1. Add `SECURITY.md`, `CONTRIBUTING.md`, issue templates and Dependabot config (decision 14).
+
+1. Add issue templates and Dependabot config (decision 14). `SECURITY.md`, `CONTRIBUTING.md`, the lint script and git hooks are already in place.
 2. Clean up the template project:
    - Set the deployment target to 18.0 (currently 26.5) and Swift to 6 (currently 5.0).
    - Remove SwiftData entirely: delete `Item.swift`, the `ModelContainer` in `keepassiosApp.swift`, and the `@Query`/`modelContext` use in `ContentView.swift`.
