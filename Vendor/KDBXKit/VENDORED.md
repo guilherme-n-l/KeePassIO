@@ -19,6 +19,7 @@ Each patch is its own commit in this repository, touching only this directory; `
 | Public `KDBX.CustomDataItem.init(key:value:)` | Group and entry custom data couldn't be created outside the library |
 | Public `KDBX.AutoType.Association.init(window:keystrokeSequence:)` | Auto-type associations couldn't be created outside the library |
 | Preserve unknown XML elements (`KDBX.UnknownElement`, `unknownElements` on KDBX, Meta, Root, Group, Entry) and write them back | Elements written by other clients, plugins or newer format revisions were silently dropped on save. Limits: elements nested inside Times/AutoType/CustomData are still dropped; a `Protected="True"` value inside an unknown element is written back as its old ciphertext, which no longer decrypts after the inner-stream key changes on save |
+| Trim indentation from mixed-content text in unknown elements when reading | The writer indents child elements, so text next to them gained more whitespace on every save |
 
 ## Updating
 

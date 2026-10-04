@@ -4,6 +4,8 @@
 // SPDX-License-Identifier: BSD-2-Clause
 //
 
+import Foundation
+
 public extension KDBX {
     /// An XML element KDBXKit doesn't model, kept verbatim so saving the
     /// vault doesn't lose it.
@@ -65,15 +67,23 @@ public extension KDBX {
 extension KDBX.UnknownElement {
     /// Copies an element subtree out of a parsed document.
     init(_ node: Node) {
+        // The writer indents child elements, which adds whitespace around
+        // the text of an element that mixes text and child elements. Trim
+        // that text (and drop whitespace-only text) when reading, so a
+        // read-write cycle is stable instead of adding indentation on
+        // every save. Text-only elements keep their text exactly.
+        let hasElementChildren = node.children.contains { $0.kind == .element }
         self.init(
             name: node.name,
             attributes: node.attributes.map { Attribute(name: $0.name, value: $0.value) },
-            children: node.children.map { child in
+            children: node.children.compactMap { child in
                 switch child.kind {
                 case .element:
-                    .element(KDBX.UnknownElement(child))
+                    return .element(KDBX.UnknownElement(child))
                 case .text:
-                    .text(child.value)
+                    guard hasElementChildren else { return .text(child.value) }
+                    let trimmed = child.value.trimmingCharacters(in: .whitespacesAndNewlines)
+                    return trimmed.isEmpty ? nil : .text(trimmed)
                 }
             }
         )

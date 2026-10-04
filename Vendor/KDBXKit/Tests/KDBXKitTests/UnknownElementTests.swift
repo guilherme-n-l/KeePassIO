@@ -213,3 +213,36 @@ struct UnknownElementTests {
         }
     }
 }
+
+/// Mixed content (text plus child elements) must not gain the writer's
+/// indentation on every save.
+@Suite("Unknown elements: repeated saves are stable")
+struct UnknownElementStabilityTests {
+    @Test func mixedContentTextDoesNotGrowAcrossSaves() throws {
+        let marker = KDBX.UnknownElement(
+            name: "XPluginData",
+            children: [.text("payload"), .element(.init(name: "Nested", children: [.text("  spaced  ")]))]
+        )
+        var content = KDBXContent.makeEmpty(
+            databaseName: "Stable",
+            kdf: .argon2id(.init(version: .v1_3, salt: Data(count: 32), iterations: 1, memory: 1 << 20, parallelism: 1), additional: [:])
+        )
+        content.database.unknownElements = [marker]
+        let unlock = UnlockData(masterPassword: "test")
+
+        var data = try Self.write(content, unlock: unlock)
+        for _ in 0..<3 {
+            let reread = try KDBXReader.parse(data, unlockData: unlock)
+            #expect(reread.database.unknownElements == [marker])
+            data = try Self.write(reread, unlock: unlock)
+        }
+    }
+
+    static func write(_ content: KDBXContent, unlock: UnlockData) throws -> Data {
+        let output = OutputStream(toMemory: ())
+        output.open()
+        defer { output.close() }
+        try KDBXWriter(to: output).write(content, unlockData: unlock)
+        return output.property(forKey: .dataWrittenToMemoryStreamKey) as? Data ?? Data()
+    }
+}
