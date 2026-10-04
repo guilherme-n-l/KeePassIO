@@ -73,7 +73,7 @@ final class AutoFillModel {
                 select(reference)
             }
         } catch {
-            loadError = String(localized: "Couldn't read the database list. Open KeePassIOS and try again.")
+            loadError = String(localized: "Couldn't read the database list. Open KeePassIO and try again.")
         }
     }
 

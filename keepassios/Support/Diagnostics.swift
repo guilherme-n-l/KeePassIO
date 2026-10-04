@@ -20,7 +20,7 @@ final class DiagnosticsRecorder {
 
     /// Writes the export to a temporary file for the share sheet.
     func exportFile() -> URL? {
-        let url = FileManager.default.temporaryDirectory.appendingPathComponent("KeePassIOS-diagnostics.json")
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("KeePassIO-diagnostics.json")
         let os = "\(UIDevice.current.systemName) \(UIDevice.current.systemVersion)"
         guard let data = try? backend.exportJSON(appVersion: Bundle.main.appVersion, osVersion: os) else { return nil }
         try? data.write(to: url, options: .atomic)

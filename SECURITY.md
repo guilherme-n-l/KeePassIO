@@ -1,6 +1,6 @@
 # Security policy
 
-KeePassIOS stores password databases, so security reports are taken seriously.
+KeePassIO stores password databases, so security reports are taken seriously.
 
 ## Reporting a vulnerability
 

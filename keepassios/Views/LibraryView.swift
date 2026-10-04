@@ -62,7 +62,7 @@ struct LibraryView: View {
                     }
                 }
             }
-            .navigationTitle("KeePassIOS")
+            .navigationTitle("KeePassIO")
             .navigationDestination(for: UUID.self) { id in
                 if let reference = model.databases.first(where: { $0.id == id }) {
                     DatabaseContainerView(reference: reference)

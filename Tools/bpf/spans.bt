@@ -1,5 +1,5 @@
 #!/usr/bin/env bpftrace
-// Latency histogram (microseconds) for every KeePassIOS span.
+// Latency histogram (microseconds) for every KeePassIO span.
 // $1 is the path to the instrumented binary, e.g. .build/release/kpbench.
 // Run through run.sh, which replaces span IDs with their names.
 

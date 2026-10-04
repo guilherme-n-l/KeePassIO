@@ -2,7 +2,7 @@ import XCTest
 
 /// Captures a launch screenshot for every UI configuration (light, dark,
 /// orientations) so layout regressions show up in test reports.
-final class KeePassIOSUITestsLaunchTests: XCTestCase {
+final class KeePassIOUITestsLaunchTests: XCTestCase {
     override static var runsForEachTargetApplicationUIConfiguration: Bool {
         true
     }

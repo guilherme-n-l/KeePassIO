@@ -1,5 +1,5 @@
 {
-  description = "KeePassIOS development shell";
+  description = "KeePassIO development shell";
 
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs/nixpkgs-unstable";

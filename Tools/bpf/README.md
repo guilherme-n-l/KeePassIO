@@ -1,4 +1,4 @@
-# eBPF probes for KeePassIOS core code
+# eBPF probes for KeePassIO core code
 
 iOS has no eBPF, but the core packages in `Packages/KeePassCore` also build on Linux. There, every `Trace.span` calls two exported marker functions, `kp_probe_begin(span, id, argument)` and `kp_probe_end(...)`, and these bpftrace scripts attach uprobes to them. The same span names show up in Instruments on Apple platforms through `OSSignposter`.
 

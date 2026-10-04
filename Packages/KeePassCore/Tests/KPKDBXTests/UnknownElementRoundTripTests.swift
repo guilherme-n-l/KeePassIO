@@ -6,7 +6,7 @@ import Testing
 
 @testable import KPKDBX
 
-/// XML elements KeePassIOS doesn't understand (written by other clients
+/// XML elements KeePassIO doesn't understand (written by other clients
 /// or plugins) must survive opening, editing and saving in the app.
 struct UnknownElementRoundTripTests {
     let codec = KDBXCodec()

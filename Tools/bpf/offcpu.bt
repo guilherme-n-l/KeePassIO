@@ -1,5 +1,5 @@
 #!/usr/bin/env bpftrace
-// Time each KeePassIOS span spends off CPU (blocked on I/O, locks or
+// Time each KeePassIO span spends off CPU (blocked on I/O, locks or
 // sleeps), per span, in microseconds. High values in kdf.* or save.* point
 // at contention or slow storage rather than computation.
 // $1 is the path to the instrumented binary.

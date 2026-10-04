@@ -1,6 +1,6 @@
 # Third-party notices
 
-KeePassIOS is MIT-licensed. It includes or depends on the following third-party work.
+KeePassIO is MIT-licensed. It includes or depends on the following third-party work.
 
 ## Bundled data
 

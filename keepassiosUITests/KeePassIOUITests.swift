@@ -4,7 +4,7 @@ import XCTest
 /// from an empty library (-UITestReset) and creates its own database with
 /// a cheap key derivation (-UITest), so tests don't depend on each other
 /// or on files on the device.
-final class KeePassIOSUITests: XCTestCase {
+final class KeePassIOUITests: XCTestCase {
     override func setUpWithError() throws {
         continueAfterFailure = false
     }

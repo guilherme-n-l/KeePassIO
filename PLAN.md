@@ -1,4 +1,4 @@
-# KeePassIOS: Product & Engineering Plan
+# KeePassIO: Product & Engineering Plan
 
 A native SwiftUI KeePass client for iPhone and iPad (iOS/iPadOS only) that matches KeePassium's feature set with **no paywall**, fast entry creation, first-class database merge, and built-in performance observability.
 
@@ -236,7 +236,7 @@ Linux CI enforces the core-only rows (KDF, parse, search, merge, serialize) thro
    - Files are opened with the system picker and kept with bookmarks.
    - Whatever location the user picks in Files, including another app's File Provider, works transparently.
    - We ship no cloud SDKs.
-4. **Name: KeePassIOS** (display name), repo `keepassios`. Bundle ID `dev.guilhermenl.keepassios` (from the existing project); App Group `group.dev.guilhermenl.keepassios`; extensions use `dev.guilhermenl.keepassios.<Extension>`. Paid Apple Developer account available; the team ID is set in Xcode by the owner, never committed in plain text beyond the project's `DEVELOPMENT_TEAM`.
+4. **Name: KeePassIO** (display name; renamed from KeePassIOS because Apple's guidelines don't allow "iOS" in app names), repo `keepassios` (to be renamed `keepassio`). The bundle, App Group and keychain identifiers below keep `keepassios` until just before App Store submission, so installs and provisioning don't break; they're never shown to users. Bundle ID `dev.guilhermenl.keepassios` (from the existing project); App Group `group.dev.guilhermenl.keepassios`; extensions use `dev.guilhermenl.keepassios.<Extension>`. Paid Apple Developer account available; the team ID is set in Xcode by the owner, never committed in plain text beyond the project's `DEVELOPMENT_TEAM`.
    - App Store review sometimes rejects names that lean on another product's name; "KeePass" is used by KeePassium, KeePassXC and KeePassDX, so risk is low, but have a fallback name ready before submission.
 5. **Build environment:**
    - Xcode on the owner's Mac is the primary build and the place for device profiling (Instruments).

@@ -3,7 +3,7 @@ import KPPlatform
 import SwiftUI
 
 @main
-struct KeePassIOSApp: App {
+struct KeePassIOApp: App {
     @State private var model = AppModel()
     @State private var diagnostics = DiagnosticsRecorder()
     @State private var activity = ActivityMonitor()

@@ -55,7 +55,7 @@ struct SettingsView: View {
                 } header: {
                     Text("About")
                 } footer: {
-                    Text("KeePassIOS is free and open source. There is no paid version.")
+                    Text("KeePassIO is free and open source. There is no paid version.")
                 }
             }
             .navigationTitle("Settings")

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Builds KeePassIOS and installs it on a connected iPhone or iPad, without
+# Builds KeePassIO and installs it on a connected iPhone or iPad, without
 # opening Xcode. Uses the command-line tools that come with Xcode
 # (xcodebuild, xcrun devicectl).
 #

@@ -27,7 +27,7 @@ struct KDBXCodecTests {
         database.meta.historyMaxItems = 5
         database.meta.settingsChanged = date(1_700_000_000)
         database.meta.customIcons[UUID()] = Data([0x89, 0x50, 0x4e, 0x47])
-        database.meta.customData["KeePassIOS_Test"] = "1"
+        database.meta.customData["KeePassIO_Test"] = "1"
         database.root.times = Times(creation: date(1_700_000_000))
         database.deletedObjects[UUID()] = date(1_700_000_500)
 

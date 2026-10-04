@@ -36,7 +36,7 @@ struct AutoFillView: View {
             ContentUnavailableView(
                 "No Databases",
                 systemImage: "lock.rectangle.stack",
-                description: Text("Open or create a database in KeePassIOS first.")
+                description: Text("Open or create a database in KeePassIO first.")
             )
         } else if let session = model.session, let reference = model.selected {
             if session.state == .unlocked {
@@ -214,7 +214,7 @@ private struct AutoFillUnlockView: View {
                 .disabled(session.state == .unlocking || (password.isEmpty && keyFileData == nil))
             }
         }
-        .navigationTitle("KeePassIOS")
+        .navigationTitle("KeePassIO")
         .navigationBarTitleDisplayMode(.inline)
         .fileImporter(isPresented: $isPickingKeyFile, allowedContentTypes: [.data]) { result in
             guard case .success(let url) = result else { return }
@@ -289,7 +289,7 @@ private struct AutoFillUnlockView: View {
                     "This database needs more memory to unlock than AutoFill is allowed. Lower the key derivation memory in KeePassXC (Database Settings → Security), or copy the password from the app."
             )
         case .file(.notFound), .file(.accessDenied):
-            String(localized: "The database file can't be reached. Open it once in KeePassIOS, then try again.")
+            String(localized: "The database file can't be reached. Open it once in KeePassIO, then try again.")
         default:
             String(localized: "The database couldn't be opened.")
         }

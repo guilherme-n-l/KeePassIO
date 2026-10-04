@@ -1,5 +1,5 @@
 #!/usr/bin/env bpftrace
-// Heap allocations (count and bytes) made inside each KeePassIOS span, via
+// Heap allocations (count and bytes) made inside each KeePassIO span, via
 // uprobes on libc malloc. Useful for keeping parse and search allocations
 // down. $1 is the path to the instrumented binary.
 

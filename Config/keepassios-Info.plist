@@ -8,7 +8,7 @@
 			<key>UTTypeIdentifier</key>
 			<string>dev.guilhermenl.keepassios.item</string>
 			<key>UTTypeDescription</key>
-			<string>KeePassIOS Entry or Group</string>
+			<string>KeePassIO Entry or Group</string>
 			<key>UTTypeConformsTo</key>
 			<array>
 				<string>public.data</string>

@@ -1,6 +1,6 @@
-# Contributing to KeePassIOS
+# Contributing to KeePassIO
 
-KeePassIOS is MIT-licensed. Read [PLAN.md](PLAN.md) for the architecture and the decisions behind it.
+KeePassIO is MIT-licensed. Read [PLAN.md](PLAN.md) for the architecture and the decisions behind it.
 
 ## Setup
 

@@ -30,7 +30,7 @@ struct AutoFillSettingsSection: View {
         } footer: {
             if setup.status == .off {
                 Text(
-                    "Fill passwords and one-time codes in Safari and other apps. If the prompt doesn't appear, open Settings > General > AutoFill & Passwords and turn on KeePassIOS."
+                    "Fill passwords and one-time codes in Safari and other apps. If the prompt doesn't appear, open Settings > General > AutoFill & Passwords and turn on KeePassIO."
                 )
                 .foregroundStyle(declined ? .orange : .secondary)
             }
@@ -48,7 +48,7 @@ struct AutoFillPromptCard: View {
         if setup.status == .off, !isDismissed {
             VStack(alignment: .leading, spacing: 8) {
                 HStack(alignment: .firstTextBaseline) {
-                    Label("Use KeePassIOS for AutoFill", systemImage: "key.viewfinder")
+                    Label("Use KeePassIO for AutoFill", systemImage: "key.viewfinder")
                         .font(.headline)
                     Spacer()
                     Button {

@@ -3,7 +3,7 @@ import SwiftUI
 import UIKit
 
 /// Entry point of the AutoFill extension. iOS shows it when the user picks
-/// KeePassIOS from the password or one-time code suggestions; it hosts the
+/// KeePassIO from the password or one-time code suggestions; it hosts the
 /// SwiftUI picker and hands the chosen credential back to the system.
 ///
 /// New entries saved here go to the original file when the extension can

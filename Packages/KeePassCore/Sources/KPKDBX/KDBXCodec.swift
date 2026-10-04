@@ -70,7 +70,7 @@ public struct KDBXCodec: DatabaseCodec {
             ?? KDBXContent.makeEmpty(
                 databaseName: database.meta.name,
                 kdf: settings.kdfParameters(),
-                generator: "KeePassIOS"
+                generator: "KeePassIO"
             )
         if previous == nil || EncryptionSettings(maybeHeader: content.header) != settings {
             content.header = Header(
@@ -86,7 +86,7 @@ public struct KDBXCodec: DatabaseCodec {
         let mapped = KDBXMapping.kdbx(from: database, previous: content.database)
         content.database = mapped.database
         content.innerHeader.binaryContent = mapped.binaries
-        content.database.meta.generator = "KeePassIOS"
+        content.database.meta.generator = "KeePassIO"
 
         let unlock = try Self.unlockData(for: key)
         let output = OutputStream(toMemory: ())

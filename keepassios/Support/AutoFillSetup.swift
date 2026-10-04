@@ -1,7 +1,7 @@
 import AuthenticationServices
 import Observation
 
-/// Whether KeePassIOS is turned on as an AutoFill provider, and the ways
+/// Whether KeePassIO is turned on as an AutoFill provider, and the ways
 /// to turn it on.
 ///
 /// iOS 18 can ask the user directly (a system prompt with an "Allow"
@@ -27,7 +27,7 @@ final class AutoFillSetup {
         status = isEnabled ? .on : .off
     }
 
-    /// Shows the system prompt to turn KeePassIOS on. Returns whether
+    /// Shows the system prompt to turn KeePassIO on. Returns whether
     /// it's on afterwards.
     @discardableResult
     func turnOn() async -> Bool {

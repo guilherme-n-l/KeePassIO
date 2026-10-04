@@ -1,5 +1,5 @@
 #!/usr/bin/env bpftrace
-// Syscall latency (microseconds) inside KeePassIOS spans, keyed by span and
+// Syscall latency (microseconds) inside KeePassIO spans, keyed by span and
 // syscall number (`ausyscall --dump` or the kernel's syscall table names
 // them; 74 is fsync and 82 rename on x86_64). Shows what fsync, rename and file reads cost during save and
 // unlock. $1 is the path to the instrumented binary.

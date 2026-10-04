@@ -5,7 +5,7 @@
 
 ## Context
 
-KeePassIOS needs to read and write KDBX 4.x, be MIT-licensed, target iOS 18, and avoid handwritten code where a maintained library exists (PLAN.md section 9b). [KeePassKit](https://github.com/MacPass/KeePassKit) is GPL-3 and can't be used. [KDBXKit](https://github.com/shadone/KDBXKit) (BSD 2-Clause, Swift, iOS 18 / macOS 15 / Linux) was evaluated on Linux with Swift 6.3.3 against KeePassXC 2.7.6 and pykeepass 4.2.0.
+KeePassIO needs to read and write KDBX 4.x, be MIT-licensed, target iOS 18, and avoid handwritten code where a maintained library exists (PLAN.md section 9b). [KeePassKit](https://github.com/MacPass/KeePassKit) is GPL-3 and can't be used. [KDBXKit](https://github.com/shadone/KDBXKit) (BSD 2-Clause, Swift, iOS 18 / macOS 15 / Linux) was evaluated on Linux with Swift 6.3.3 against KeePassXC 2.7.6 and pykeepass 4.2.0.
 
 ## Findings
 

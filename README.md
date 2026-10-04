@@ -1,4 +1,4 @@
-# KeePassIOS
+# KeePassIO
 
 A free, open-source KeePass password manager for iPhone and iPad, written in SwiftUI. No paywall, no tracking, no network access unless you turn it on.
 
