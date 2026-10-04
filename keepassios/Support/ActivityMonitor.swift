@@ -1,0 +1,66 @@
+import SwiftUI
+import UIKit
+
+/// Remembers when the user last touched the app, for the idle auto-lock.
+///
+/// A gesture recognizer on the window sees every touch without taking
+/// part in gesture handling, so it can't interfere with any control.
+@MainActor
+final class ActivityMonitor {
+    private(set) var lastActivity = Date()
+
+    func recordActivity() {
+        lastActivity = Date()
+    }
+
+    /// Attaches the recognizer to the window of the view it's placed in.
+    struct Installer: UIViewRepresentable {
+        let monitor: ActivityMonitor
+
+        func makeUIView(context: Context) -> InstallerView {
+            InstallerView(monitor: monitor)
+        }
+
+        func updateUIView(_ uiView: InstallerView, context: Context) {}
+    }
+
+    final class InstallerView: UIView {
+        private let monitor: ActivityMonitor
+        private var recognizer: TouchRecorder?
+
+        init(monitor: ActivityMonitor) {
+            self.monitor = monitor
+            super.init(frame: .zero)
+            isUserInteractionEnabled = false
+        }
+
+        @available(*, unavailable)
+        required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
+
+        override func didMoveToWindow() {
+            super.didMoveToWindow()
+            guard let window, recognizer == nil else { return }
+            let recognizer = TouchRecorder(monitor: monitor)
+            window.addGestureRecognizer(recognizer)
+            self.recognizer = recognizer
+        }
+    }
+
+    /// Records each touch, then fails so other gestures proceed normally.
+    final class TouchRecorder: UIGestureRecognizer {
+        private let monitor: ActivityMonitor
+
+        init(monitor: ActivityMonitor) {
+            self.monitor = monitor
+            super.init(target: nil, action: nil)
+            cancelsTouchesInView = false
+            delaysTouchesBegan = false
+            delaysTouchesEnded = false
+        }
+
+        override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent) {
+            monitor.recordActivity()
+            state = .failed
+        }
+    }
+}

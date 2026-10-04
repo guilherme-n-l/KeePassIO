@@ -63,6 +63,14 @@ struct LibraryView: View {
             .navigationDestination(for: DatabaseRoute.self) { route in
                 destination(for: route)
             }
+            .onChange(of: path) { _, newPath in
+                // Going back to the library closes the database, as in
+                // KeePassium; opening it again asks for Face ID or the
+                // password.
+                if newPath.isEmpty {
+                    model.lockAll()
+                }
+            }
             .onChange(of: model.lockCount) {
                 // Screens inside a database can't show anything once it's
                 // locked: go back to its unlock screen.

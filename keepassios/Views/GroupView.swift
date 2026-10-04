@@ -41,45 +41,40 @@ struct GroupView: View {
     private var group: KPModel.Group? { session.database?.group(withID: groupID) }
 
     var body: some View {
-        List {
-            if !query.isEmpty {
-                searchResults
-            } else if let group {
-                if !isRoot {
-                    Section {
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: 24) {
+                if !query.isEmpty {
+                    searchResults
+                } else if let group {
+                    if !isRoot {
                         Breadcrumbs(session: session, groupID: groupID) { items, target in
                             move(items, into: target)
                         }
                     }
-                }
-                if !group.groups.isEmpty {
-                    Section("Groups") {
-                        ForEach(group.groups) { child in
-                            groupRow(child)
-                        }
-                        .onDelete { offsets in
-                            for index in offsets {
-                                try? session.deleteGroup(group.groups[index].id)
+                    if !group.groups.isEmpty {
+                        CardSection("Groups") {
+                            ForEach(group.groups) { child in
+                                groupRow(child)
                             }
                         }
                     }
-                }
-                Section("Entries") {
-                    if group.entries.isEmpty {
-                        Text("No entries")
-                            .foregroundStyle(.secondary)
-                    }
-                    ForEach(group.entries) { entry in
-                        entryRow(entry)
-                    }
-                    .onDelete { offsets in
-                        for index in offsets {
-                            try? session.deleteEntry(group.entries[index].id)
+                    CardSection("Entries") {
+                        if group.entries.isEmpty {
+                            CardRow(showsChevron: false) {
+                                Text("No entries")
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        ForEach(group.entries) { entry in
+                            entryRow(entry)
                         }
                     }
                 }
             }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
         }
+        .background(Color(uiColor: .systemGroupedBackground))
         .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search")
         .modifier(SearchScopeBar(isShown: !isRoot, scope: $scope))
         .navigationTitle(group?.name ?? "")
@@ -157,19 +152,21 @@ struct GroupView: View {
         let hits = session.searchIndex?.search(query, in: searchedGroup, limit: 200) ?? []
         if hits.isEmpty {
             ContentUnavailableView.search(text: query)
-        }
-        ForEach(hits) { hit in
-            NavigationLink(value: DatabaseRoute.entry(database: databaseID, entry: hit.entryID)) {
-                if let entry = session.database?.entry(withID: hit.entryID) {
-                    EntryRow(entry: entry, database: session.database, groupName: hit.groupName)
+        } else {
+            CardSection {
+                ForEach(hits) { hit in
+                    if let entry = session.database?.entry(withID: hit.entryID) {
+                        NavigationLink(value: DatabaseRoute.entry(database: databaseID, entry: hit.entryID)) {
+                            CardRow {
+                                EntryRow(entry: entry, database: session.database, groupName: hit.groupName)
+                            }
+                        }
+                        .buttonStyle(CardRowButtonStyle())
+                        .contextMenu { quickActions(for: entry) }
+                        .accessibilityIdentifier("search.\(hit.title)")
+                    }
                 }
             }
-            .contextMenu {
-                if let entry = session.database?.entry(withID: hit.entryID) {
-                    quickActions(for: entry)
-                }
-            }
-            .accessibilityIdentifier("search.\(hit.title)")
         }
     }
 
@@ -236,18 +233,18 @@ extension GroupView {
     /// to move them in.
     private func groupRow(_ child: KPModel.Group) -> some View {
         NavigationLink(value: DatabaseRoute.group(database: databaseID, group: child.id)) {
-            Label {
-                Text(child.name)
-            } icon: {
-                ItemIcon(group: child, in: session.database)
+            CardRow {
+                HStack(spacing: 12) {
+                    ItemIcon(group: child, in: session.database)
+                    Text(child.name)
+                }
             }
         }
+        .buttonStyle(CardRowButtonStyle())
         .draggable(DraggedItem(kind: .group, id: child.id)) {
             DragPreview(title: child.name, systemImage: "folder")
         }
-        .dropDestination(for: DraggedItem.self) { items, _ in
-            move(items, into: child.id)
-        }
+        .modifier(MoveIntoDropTarget { items in move(items, into: child.id) })
         .contextMenu { groupActions(for: child) }
         .accessibilityIdentifier("group.\(child.name)")
     }
@@ -256,8 +253,11 @@ extension GroupView {
     /// group the two.
     private func entryRow(_ entry: Entry) -> some View {
         NavigationLink(value: DatabaseRoute.entry(database: databaseID, entry: entry.id)) {
-            EntryRow(entry: entry, database: session.database)
+            CardRow {
+                EntryRow(entry: entry, database: session.database)
+            }
         }
+        .buttonStyle(CardRowButtonStyle())
         .draggable(DraggedItem(kind: .entry, id: entry.id)) {
             DragPreview(title: entry.title, systemImage: "key")
         }

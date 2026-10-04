@@ -5,6 +5,7 @@ import KPModel
 import KPPlatform
 import KPSession
 import Observation
+import UIKit
 
 /// App-wide state: the database library, settings and open sessions.
 @MainActor
@@ -172,7 +173,7 @@ final class AppModel {
         if let id = sessions.first(where: { $0.value === session })?.key {
             lockedByUser.insert(id)
         }
-        session.lock()
+        saveAndLock(session)
         lockCount += 1
     }
 
@@ -217,11 +218,56 @@ final class AppModel {
         return count
     }
 
+    /// Locks every open database (saving changes first). Does nothing,
+    /// and leaves navigation alone, when none is open.
     func lockAll() {
-        for session in sessions.values {
-            session.lock()
+        let open = sessions.values.filter { $0.state == .unlocked }
+        guard !open.isEmpty else { return }
+        for session in open {
+            saveAndLock(session)
         }
         lockCount += 1
+    }
+
+    var hasUnlockedDatabase: Bool {
+        sessions.values.contains { $0.state == .unlocked }
+    }
+
+    /// Locking drops the decrypted database, so unsaved edits are written
+    /// first. Edits are normally saved as they're made (see
+    /// `autosave(_:)`); this covers locking in the moment between. The
+    /// save asks iOS for time to finish if the app is going to the
+    /// background.
+    private func saveAndLock(_ session: DatabaseSession) {
+        guard session.hasUnsavedChanges || session.isSaving else {
+            session.lock()
+            return
+        }
+        let backgroundTask = UIApplication.shared.beginBackgroundTask(withName: "Save before locking")
+        Task {
+            await save(session)
+            session.lock()
+            UIApplication.shared.endBackgroundTask(backgroundTask)
+        }
+    }
+
+    /// Saves a database's changes, reporting failures in the library.
+    func save(_ session: DatabaseSession) async {
+        while session.isSaving {
+            try? await Task.sleep(for: .milliseconds(50))
+        }
+        do {
+            // Edits made while a save was running are saved by another pass.
+            var passes = 0
+            while session.hasUnsavedChanges, passes < 3 {
+                try await session.save()
+                passes += 1
+            }
+        } catch {
+            errorMessage = String(
+                localized: "Your latest changes couldn't be saved: \(error.userMessage)"
+            )
+        }
     }
 
     // MARK: Settings

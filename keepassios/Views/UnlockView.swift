@@ -53,20 +53,30 @@ struct UnlockView: View {
                     .submitLabel(.go)
                     .onSubmit(unlock)
                     .accessibilityIdentifier("unlock.password")
-                HStack {
+                HStack(spacing: 12) {
                     Button {
                         isPickingKeyFile = true
                     } label: {
-                        LabeledContent("Key File", value: keyFileName ?? String(localized: "None"))
-                            .foregroundStyle(.primary)
+                        HStack(spacing: 12) {
+                            Text("Key File")
+                                .foregroundStyle(.primary)
+                            Spacer(minLength: 0)
+                            Text(keyFileName ?? String(localized: "Choose…"))
+                                .foregroundStyle(keyFileName == nil ? .tint : .secondary)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                        }
+                        .contentShape(Rectangle())
                     }
-                    .buttonStyle(.borderless)
+                    .buttonStyle(.plain)
                     .accessibilityIdentifier("unlock.keyFile")
                     if keyFileData != nil {
                         Button {
                             clearKeyFile()
                         } label: {
                             Image(systemName: "xmark.circle.fill")
+                                .font(.title3)
+                                .symbolRenderingMode(.hierarchical)
                                 .foregroundStyle(.secondary)
                         }
                         .buttonStyle(.borderless)

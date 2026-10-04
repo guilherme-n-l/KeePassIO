@@ -146,6 +146,23 @@ struct MoveToView: View {
     }
 }
 
+/// Makes a group row a drop target: entries and groups dropped on it move
+/// inside. The row is highlighted while something is held over it.
+struct MoveIntoDropTarget: ViewModifier {
+    let onDrop: ([DraggedItem]) -> Bool
+    @State private var isTargeted = false
+
+    func body(content: Content) -> some View {
+        content
+            .background(isTargeted ? Color.accentColor.opacity(0.2) : Color.clear)
+            .dropDestination(for: DraggedItem.self) { items, _ in
+                onDrop(items)
+            } isTargeted: { targeted in
+                withAnimation(.snappy) { isTargeted = targeted }
+            }
+    }
+}
+
 /// Makes an entry row a drop target for grouping: an entry held over it
 /// for a moment arms the row ("New Group"), and dropping then offers to
 /// put both entries in a new group, like making a folder on the Home
@@ -169,7 +186,7 @@ struct GroupingDropTarget: ViewModifier {
                         .transition(.scale.combined(with: .opacity))
                 }
             }
-            .listRowBackground(isArmed ? Color.accentColor.opacity(0.2) : nil)
+            .background(isArmed ? Color.accentColor.opacity(0.2) : Color.clear)
             .sensoryFeedback(.selection, trigger: isArmed) { _, armed in armed }
             .dropDestination(for: DraggedItem.self) { items, _ in
                 let armed = isArmed
