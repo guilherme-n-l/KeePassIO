@@ -1,171 +1,313 @@
-# KeePassIOS — Product & Engineering Plan
+# KeePasIOS: Product & Engineering Plan
 
-A native SwiftUI KeePass client for iOS/iPadOS/macOS that matches KeePassium's feature set with **no paywall**, fast entry creation, first-class database merge, and built-in performance observability.
+A native SwiftUI KeePass client for iPhone and iPad (macOS later) that matches KeePassium's feature set with **no paywall**, fast entry creation, first-class database merge, and built-in performance observability.
 
-Status: planning only. The repo currently holds LICENSE and README.
+**Status:** planning. `main` holds the Xcode template project (`keepassios.xcodeproj`, SwiftData sample code). No product code yet.
 
-## 1. Goals / non-goals
+---
+
+## 1. Goals and non-goals
 
 **Goals**
-- Full KDBX 3.1 + 4.x read/write (KDBX 4.1 included); KDB (1.x) read-only import.
-- Everything free: no subscription, no feature gating, no "premium" code paths. Sustain via donations/GitHub Sponsors.
-- Quick create: a new entry in <3 taps / <5 s from anywhere in the system.
-- Safe, deterministic, user-visible database merge (not just "conflicted copy").
-- AutoFill (passwords, passkeys, TOTP) that is fast under the extension memory limit (~120 MB).
-- Observability built in from day 1 (section 6).
+- Read and write KDBX 4.0/4.1. Read KDBX 3.1 and save it as KDBX 4 (with the user's consent). See section 9b for why.
+- Everything free: no subscription, no feature gating, no "premium" code paths. Funding by donations or GitHub Sponsors only.
+- **Quick create:** a new entry in under 3 taps and 5 seconds, from anywhere in the system, even while the database is locked.
+- **Merge:** safe, deterministic and visible to the user, never just "conflicted copy".
+- **AutoFill** for passwords, passkeys and TOTP codes, fast and within the extension memory limit (about 120 MB).
+- **Observability** built in from the first commit (section 6).
+- **Privacy:** no network access by default, no analytics SDKs, App Store privacy label "Data Not Collected".
 
-**Non-goals (v1)**: own sync server, browser extension, Android, telemetry that leaves the device by default.
+**Non-goals for v1**
+- Cloud storage SDKs, WebDAV or SFTP. Files are local, opened through the Files app (section 9).
+- A sync server, browser extension, Android app or Apple Watch app.
+- KDB (KeePass 1.x) import, Twofish databases, writing KDBX 3.1 (deferred; see 9b).
 
-## 2. Reference-repo takeaways
+## 2. Reference repos (behavior only, no code)
 
-| Repo | Borrow | Avoid |
+All three are GPL. We are MIT, so we read them for behavior and UX and never copy code (section 9).
+
+| Repo | What to learn from it | What to avoid |
 |---|---|---|
-| KeePassium (Swift, GPL-3) | Feature checklist, AutoFill UX, file-provider/Files integration, Argon2 memory handling in extensions. Read for behavior only; **license is GPL-3 — do not copy code** unless we license GPL-3 too. Decide license early (see §9). | Paywall tiers |
-| KeePassXC (C++) | Reference merge logic (`Merger`), KDBX test vectors, TOTP/passkey handling, browser-integration ideas | — |
-| KeePassDX (Kotlin) | Quick-add UX, templates, UI ideas | — |
+| [KeePassium](https://github.com/keepassium/keepassium) (Swift) | Feature checklist, AutoFill UX, how it caches Files-provider files for the AutoFill extension, Argon2 memory limits in extensions | Paywall tiers |
+| [KeePassXC](https://github.com/keepassxreboot/keepassxc) (C++) | Merge semantics (its `Merger` behaviour), TOTP/passkey storage conventions, KDBX edge cases | n/a |
+| [KeePassDX](https://github.com/Kunzisoft/KeePassDX) (Kotlin) | Quick-add flows, entry templates, UI ideas | n/a |
 
-Use all three as **test oracles**: generate databases with KeePassXC CLI (`keepassxc-cli`), open in our parser; write with ours, open in theirs. This runs in CI on Linux.
+**Interop oracle:** CI generates databases with `keepassxc-cli` and opens them with our code, then writes with ours and opens with `keepassxc-cli`. Using its binary as a test tool is not copying its code.
 
 ## 3. Architecture
 
-Modular Swift Package, UI-free core so it builds and tests on **Linux** (fast CI, and enables the Linux profiling in §6).
+UI-free core packages build and test on **Linux** (fast CI, and real eBPF profiling, section 6). Apple-only code lives in the app and extension targets.
 
 ```
-KeePassIOS/
-  Packages/
-    KPCrypto/      (thin; mostly dependencies, see 9b) AES-256, ChaCha20, Salsa20, Twofish (legacy), SHA/HMAC, AES-KDF, Argon2d/2id (vendored C reference impl), key-file/composite-key derivation
-    KPFormat/      KDBX3/4 reader+writer, HMAC block stream, gzip, XML (streaming, not DOM), inner-header protected values, KDB import
-    KPModel/       Database, Group, Entry, History, DeletedObjects, CustomData, Attachments (binary pool, dedup), Templates
-    KPMerge/       3-way/2-way merge engine, conflict model, dry-run diff
-    KPSearch/      Indexed search (tokenized, in-memory, built after unlock), TOTP, password generator, breach check (k-anonymity HIBP, opt-in)
-    KPStorage/     Storage abstraction: Files/iCloud Drive, local, WebDAV, SFTP(opt), Dropbox/OneDrive/GDrive (via Files providers first)
-    KPKeychain/    Secure Enclave / Keychain wrapping of quick-unlock key, biometrics
-    KPObservability/ signposts, metrics, tracing (see §6) — no dependency on the others except a tiny protocol
-  Apps/
-    iOS App (SwiftUI)          iPad split-view, macOS (Catalyst-free native SwiftUI later)
-    AutoFillExtension          ASCredentialProviderViewController (passwords, passkeys, OTP)
-    ShareExtension             quick create from Safari/any app
-    WidgetsAndIntents          App Intents, Control Center control, Lock Screen widget, Action Button
+keepassios/                         (repo root)
+  keepassios.xcodeproj              existing project; targets below are added to it
+  Packages/KeePasCore/              one SwiftPM package, several targets:
+    KPModel        thin domain layer over KDBXKit: Database, Group, Entry, History, DeletedObjects, Templates, Tags
+    KPMerge        merge engine, conflict model, dry-run diff        (handrolled: nothing exists)
+    KPSearch       in-memory index built after unlock, filters, password audit (weak/reused, local only)
+    KPOTP          TOTP/Steam codes, otpauth:// parsing             (~100 lines on CryptoKit HMAC)
+    KPGenerator    password and passphrase generator (wordlist: EFF, CC-BY)
+    KPInbox        encrypted quick-create inbox (HPKE, see 4.1)
+    KPObservability  Trace.span, metrics, probe backends (section 6)
+  Packages/KeePasApple/             Apple-only package
+    KPFiles        security-scoped bookmarks, NSFileCoordinator, atomic save, local backups, App Group cache
+    KPKeychain     biometric quick unlock (Secure Enclave-wrapped key), Keychain access groups
+    KPDiagnostics  MetricKit subscriber, on-device histogram store, export
+  App targets (in the Xcode project):
+    keepassios                  SwiftUI app (iPhone, iPad; macOS native target in M5)
+    AutoFill                    ASCredentialProviderViewController: passwords, passkeys, OTP codes, saving credentials
+    QuickCreateShare            share extension: URL/text into a new entry
+    Widgets                     App Intents, Control Center control, Lock Screen widget, Action Button
   Tools/
-    kpbench/       CLI that opens/merges/saves DBs and emits traces (Linux+macOS)
-    kpfuzz/        parser fuzzers (libFuzzer via SwiftPM)
+    kpbench        CLI (swift-argument-parser): open/search/merge/save a DB, emit Perfetto traces (Linux + macOS)
+    kpfuzz         libFuzzer harnesses for KDBX input and merge
+    bpf/           bpftrace scripts for the Linux profiling layer (section 6)
+  .github/workflows/  linux.yml, macos.yml, nightly.yml
 ```
 
-Key decisions
-- **Swift 6 strict concurrency**; core is `Sendable` value-ish types, database held in an `actor`.
-- **Secrets hygiene**: protected values stored as `SecureBytes` (mlock'd/zeroed on dealloc), decrypted lazily per field, never in `String` longer than needed; clipboard with expiry + `UIPasteboard` local-only/expiring flags; screenshot/app-switcher obscuring.
-- **Crypto**: CryptoKit where available; on Linux use swift-crypto (same API). Argon2 via vendored C (BSD/CC0 reference), compiled with NEON; memory capped adaptively in extensions.
-- **Streaming XML**: avoid building a full DOM for large DBs (memory in AutoFill). Target: 10k entries / 50 MB attachments unlock under budgets in §7.
-- **Atomic saves**: write temp → fsync → coordinated replace via `NSFileCoordinator`; keep rolling local backups; detect external change before save (triggers merge, never silent overwrite).
-- **UI**: SwiftUI + `@Observable`, `NavigationSplitView`, full Dynamic Type/VoiceOver, no UIKit except where AutoFill forces it.
+Dependencies (all MIT/BSD/Apache/CC0, pinned by exact version):
+[KDBXKit](https://github.com/shadone/KDBXKit) (format, crypto, SecureBytes), swift-crypto, swift-log, swift-metrics, swift-argument-parser, swift-testing, [YubiKit](https://github.com/Yubico/yubikit-ios) (Apache-2, for hardware keys).
 
-## 4. Feature roadmap
+### Key design decisions
+- **Swift 6 language mode, strict concurrency.** An open database lives in a `DatabaseSession` actor. Views get `@Observable` snapshots and never touch secrets directly.
+- **No SwiftData for vault content.** The template's SwiftData model is deleted. App metadata (recent files, bookmarks, settings) goes in a small Codable store in the App Group container. Nothing secret is ever written outside the KDBX file.
+- **Secrets hygiene:**
+  - Protected fields stay in KDBXKit's `SecureBytes` (locked in memory, zeroed on release) and are decrypted only when shown or copied.
+  - Clipboard copies are local-only (no Universal Clipboard) and expire.
+  - The UI is obscured in the app switcher and blurred during screen recording.
+  - The app auto-locks on timeout or backgrounding, and locks on memory warnings in extensions.
+- **Files:**
+  - The user picks a `.kdbx` with `fileImporter`, and the app keeps a security-scoped bookmark.
+  - All reads and writes go through `NSFileCoordinator`.
+  - Saves are atomic: write a temp file, fsync, then do a coordinated replace.
+  - Before every save the app checks the file's modification date and size. If someone else changed it, it opens the merge flow instead of overwriting.
+  - The app keeps rolling local backups (last N saves, encrypted, since they are just KDBX copies).
+  - **AutoFill access:** extensions can't reliably resolve bookmarks to third-party File Provider locations, so the app keeps a read-only cached copy of each database in the App Group container. It is refreshed on every app open and save. Entries created from AutoFill go into the inbox (4.1), never directly into the cached copy.
+- **UI:** SwiftUI with `NavigationSplitView`, built with the current SDK (iOS 26 design language) but deploying to iOS 18. Full Dynamic Type, VoiceOver and keyboard support on iPad. UIKit only where AutoFill requires it.
 
-**M0 – Foundations (wk 1–3)**: repo/CI, packages scaffolding, KDBX4 read (AES-KDF, Argon2, ChaCha20), test vectors from KeePassXC, `kpbench open`.
-**M1 – Read-only app (wk 4–7)**: file picker/Files integration, composite key (password + key file + hardware-key challenge-response via YubiKey NFC/Lightning in M3), browse, search, TOTP, attachments view, biometric quick unlock.
-**M2 – Write + quick create (wk 8–11)**: KDBX4 writer (round-trip fidelity incl. unknown XML preserved, custom data, history), edit/create/move/delete, recycle bin, password generator, templates, **quick create** (below).
-**M3 – AutoFill + merge (wk 12–16)**: AutoFill extension (passwords, TOTP, passkeys), **DB merge** (below), KDBX3 write, YubiKey.
-**M4 – Polish/beta (wk 17–20)**: iPad/macOS layouts, widgets, localization, accessibility audit, TestFlight.
+## 4. Features
 
-### Quick create (differentiator)
-- App Intent + Siri/Shortcuts/Action Button/Control Center: "New KeePass entry" opens a minimal sheet already focused on title; password pre-generated per saved profile.
-- AutoFill **"Save password"** flow: when iOS offers to save a new credential, write it directly to the default DB (iOS 18+ credential provider save API) without opening the app.
-- Share extension: share a URL/text → entry with title, URL, favicon prefilled.
-- Entry **templates** (login, card, wifi, SSH key, note) and a "quick-add" default group per DB.
-- Works while DB is locked: new entries are queued in an encrypted **inbox** (encrypted to a public key stored in Keychain; private key released on unlock) and merged in at next unlock. No plaintext on disk, no need for master password at capture time.
+### 4.1 Quick create (differentiator)
+- **Entry points:**
+  - App Intent "New KeePass entry", available through Siri, Shortcuts, the Action Button, a Control Center control and a Lock Screen widget.
+  - The share extension (from Safari or any app; prefills title and URL).
+  - AutoFill's save-credential flow, which iOS 18+ offers to credential providers.
+- **Minimal sheet:** title focused, password pre-generated from the default profile, username remembered per domain, template picker (login, card, Wi-Fi, SSH key, secure note), "Advanced" collapsed.
+- **Works while locked (the inbox):**
+  - Each database has an X25519 key pair. The private key is stored inside the database as a protected custom-data field, so it is only available after unlock.
+  - The public key is kept in the App Group.
+  - New entries are HPKE-sealed to the public key and written to the App Group inbox. No master password is needed and no plaintext touches the disk.
+  - On next unlock the inbox is opened, merged in through `KPMerge` (as "added" items, reviewable), saved, and then emptied.
+  - A pending-count badge shows on the database row.
+- **Target group:** a "Quick add" group per database, configurable.
 
-### Database merge (differentiator)
-Based on KeePass semantics (UUID identity + `LastModificationTime` + `History` + `DeletedObjects` + `LocationChanged`), implemented in `KPMerge`:
-- Pure function `merge(local, remote, base?) -> MergeResult { merged, report }`; **dry-run first**, user sees a diff UI (added / modified / moved / deleted / conflicting), per-item override.
-- Entry conflicts: newer wins, loser pushed into `History` (never lost); if both changed same field since `base`, surface as conflict with field-level pick.
-- Deletions honored via DeletedObjects only when not modified after deletion time; otherwise resurrect + report.
-- Groups: move/rename/reorder, custom icons, custom data, attachments (content-hash dedup), settings (recycle bin, history limits).
-- Automatic trigger: on external-change detection and when opening a file that has an iCloud/Dropbox "conflicted copy" sibling; manual "Merge with…" action for any other file.
-- Property tests: merge is idempotent, commutative on content, and associative (for the non-conflict subset); cross-check against KeePassXC `Merger` on generated corpora.
+### 4.2 Database merge (differentiator)
+Built on KeePass semantics: UUID identity, `LastModificationTime`, `History`, `DeletedObjects`, `LocationChanged`.
+- **Pure function:** `merge(local, remote, base?) -> MergePlan`, then `apply(plan)`.
+  - `base` is the last version this device saved, kept in local backups, so we get a real three-way merge most of the time.
+  - Without a base, it falls back to a two-way merge by timestamps, the same way KeePassXC does.
+- **Dry run first.** A review screen lists added, modified, moved, deleted and conflicting items. The user can override per item and see a field-level diff.
+- **Entries:** newest wins and the loser goes into `History`, so nothing is ever lost. When both sides changed the same field since `base`, it's a conflict and the user picks per field.
+- **Deletions:** honored only if the item wasn't modified after its deletion time. Otherwise the item is restored and flagged in the report.
+- **Groups and other data:** moves, renames, ordering, icons, custom data, attachments (deduplicated by content hash), and database settings (recycle bin, history limits) are all merged.
+- **Triggers:**
+  - A file changed externally when saving.
+  - A Files-provider "conflicted copy" sibling found next to the database.
+  - The quick-create inbox.
+  - "Merge with…" on any file.
+- **Tests:**
+  - Property-based: idempotent, the same content regardless of order, and nothing lost (every input entry version exists in the output or its history).
+  - Golden cases cross-checked against `keepassxc-cli merge` output.
+  - A fuzzed merge harness.
 
-### Everything else on the checklist
-Passkeys, TOTP (RFC 6238, Steam), search w/ filters, tags, custom fields, attachments, entry history/restore, auto-lock/timeouts, offline-first, read-only mode, multiple DBs, app lock, emergency-kit export, CSV/1PIF import, **no ads, no analytics SDKs, no network by default**.
+### 4.3 Core feature checklist (all free)
+- **Unlocking:**
+  - Password, key file, YubiKey challenge-response (NFC and USB-C via YubiKit), or any combination.
+  - Biometric quick unlock with a configurable expiry.
+- **Browsing:** groups, tags, search with filters, entry history and restore, recycle bin, custom fields, attachments (preview with Quick Look), custom icons.
+- **OTP and passkeys:** TOTP (RFC 6238, Steam) with otpauth:// QR scan, and passkeys stored in KeePassXC-compatible fields.
+- **Security tools:** password generator (character sets, passphrases), and a password audit that flags weak, reused and old passwords, entirely on device.
+- **Databases:** multiple databases, read-only mode, a lock screen for the app itself, auto-lock and clipboard timeouts.
+- **Import and export:** CSV import (generic, Bitwarden, 1Password, Chrome) and export to CSV/KDBX, with a warning.
+- **Network (off by default, opt-in):** favicon download and a breached-password check via the Have I Been Pwned k-anonymity API. A global "never use network" switch defaults to on.
 
-## 5. Security plan
-- Threat model doc (`docs/threat-model.md`): stolen device, hostile extension memory pressure, malicious DB file (parser fuzzing), clipboard sniffing, sync-provider tampering.
-- Fuzzing (libFuzzer) for KDBX header/XML/inner stream; corpus from real DBs; run nightly.
-- Argon2 parameter bounds validated before allocation (reject DoS DBs; extension memory ceiling with a clear "open in app" fallback).
-- Reproducible builds where feasible, SBOM, dependency pinning, external audit budget before 1.0.
+## 5. Roadmap
 
-## 6. Observability / profiling (the "eBPF-like" part)
+Each milestone ends with a TestFlight build (from M1) plus green CI and passing performance gates.
 
-Honest constraint: **eBPF does not exist on iOS/macOS** (no Linux kernel, and Apple blocks kernel instrumentation on devices). The Apple-native equivalents are DTrace-lineage tooling and Instruments. So we do a layered approach — same *goals* as eBPF (low-overhead, always-available, production-safe tracing with in-kernel-style aggregation), different mechanisms:
+| Milestone | Weeks | Scope | Done when |
+|---|---|---|---|
+| **M0 Foundations** | 1–2 | Clean up template project (iOS 18, Swift 6, no SwiftData), add packages, CI (Linux + macOS), `Trace.span`, `kpbench open`, **KDBXKit spike**, KeePassXC interop corpus | Spike verdict written; `kpbench open` traced on Linux under bpftrace and on macOS in Instruments |
+| **M1 Read-only app** | 3–6 | File picker + bookmarks, unlock (password + key file), browse, search, TOTP, attachments, biometric quick unlock, auto-lock | Opens every corpus database; meets the unlock and search budgets |
+| **M2 Editing + quick create** | 7–10 | Create/edit/move/delete, history, recycle bin, generator, templates, atomic save + backups, external-change detection, App Intents, share extension, inbox | Edit, save and re-open round-trips losslessly in KeePassXC |
+| **M3 AutoFill + merge** | 11–15 | AutoFill (passwords, OTP, passkeys, save credential), App Group cache, `KPMerge` + review UI, YubiKey | Property tests green; AutoFill within memory and latency budgets |
+| **M4 Polish + beta** | 16–19 | iPad layout and keyboard shortcuts, widgets, password audit, CSV import, localization (en, pt-BR first), accessibility audit, threat model review | Public TestFlight |
+| **M5 1.0 + macOS** | 20+ | App Store release, native macOS target, external security review | Shipped |
 
-| Layer | Tool | What it gives us |
+## 6. Observability and profiling (the "eBPF-like" part)
+
+**Constraint:** eBPF doesn't exist on iOS or macOS. There's no Linux kernel, and Apple doesn't allow kernel instrumentation on devices. So the plan reaches eBPF's goals (low-overhead, always-available tracing with aggregation) through layers:
+
+| Layer | Mechanism | Gives us |
 |---|---|---|
-| **A. Static probes in our code (our "tracepoints")** | `os_signpost` / `OSSignposter` intervals & events in `KPObservability`, e.g. `kdf.argon2`, `kdbx.decrypt`, `xml.parse`, `index.build`, `merge.plan`, `merge.apply`, `save.fsync`, `autofill.unlock→first-result` | Near-zero-cost when not recording; shows up in Instruments (os_signpost, Points of Interest), `xctrace`, and CI traces |
-| **B. Dynamic profiling** | Instruments: Time Profiler, Allocations, VM Tracker, File Activity, Hangs, Energy, **Swift Concurrency** instrument; `xctrace record` scripted in CI/nightly on a device farm or simulator | Sampling CPU, allocation call trees, leaked secrets-in-memory checks, extension memory peaks |
-| **C. Production-safe field metrics (opt-in, local-first)** | **MetricKit** (`MXMetricPayload`, `MXDiagnosticPayload`: hangs, crashes, CPU/disk exceptions, launch time) + our own ring-buffer of signpost-derived histograms (unlock time, merge time, DB size buckets), viewable in an in-app **"Diagnostics"** screen and exportable as a file the user can attach to an issue. Never auto-uploaded. | The eBPF-style "always-on aggregated histograms", privacy-safe (no entry data, only sizes/timings) |
-| **D. Regression gates** | `XCTMetric`s (`XCTClockMetric`, `XCTCPUMetric`, `XCTMemoryMetric`, `XCTStorageMetric`, `XCTOSSignpostMetric`) with committed baselines; `kpbench` outputs JSON; CI fails on >10% regression | Performance can't silently rot |
-| **E. Linux deep-dive (real eBPF)** | Because `KP*` packages are UI-free, run `kpbench` on a Linux CI runner under **`perf`, `bpftrace`, `bcc`/`offcputime`, `strace -T`, `valgrind --tool=massif`, heaptrack** with USDT probes (`sdt.h` shim) mirroring the signpost names → flamegraphs, off-CPU time, page-fault/syscall profiles for KDF, crypto and parsing | Genuine eBPF-grade insight into algorithmic hot spots; results transfer because the code is shared. Apple-specific costs are then verified with layers A/B on real devices |
-| **F. Tracing abstraction** | `KPObservability.Probe` protocol: one call site `Trace.span("kdbx.decrypt") { … }` fans out to `OSSignposter` on Apple, USDT/`swift-log` ring buffer on Linux, and no-op in release if disabled | Single instrumentation, multiple backends |
+| **A. Static probes ("tracepoints")** | `OSSignposter` intervals and events behind `Trace.span(.kdbxDecrypt) { … }` | Near-zero cost when not recording; visible in Instruments, `xctrace` and CI |
+| **B. Sampling and allocation profiling** | Instruments: Time Profiler, Allocations, VM Tracker, Hangs, File Activity, Swift Concurrency; `xctrace record` scripted in macOS CI | CPU flame graphs, allocation call trees, extension memory peaks |
+| **C. Always-on field metrics (local, opt-in export)** | MetricKit payloads (hangs, crashes, launch, CPU/disk exceptions) + our own fixed-bucket histograms fed by the same spans, stored on device | eBPF-style aggregated histograms; shown on a Diagnostics screen; exported only by the user as a file attached to an issue |
+| **D. Regression gates** | `XCTMetric` (clock, CPU, memory, storage, signpost) with committed baselines; `kpbench --json` | CI fails on a regression over 10% versus baseline |
+| **E. Real eBPF on Linux** | Core packages run on Linux under `bpftrace`, `perf`, `offcputime`, heaptrack | Flame graphs, off-CPU time, syscall and page-fault profiles for KDF, crypto, parse, merge |
+| **F. One instrumentation API** | `KPObservability` routes each span to the platform's backend | One call site, every tool |
 
-Also: `os.Logger` with privacy annotations (`.private` default; lint rule bans interpolating field values), `swift-metrics`-style counters/histograms in-process, and `kpbench --trace out.json` emitting Chrome-trace/Perfetto format so any run is viewable in ui.perfetto.dev.
+### 6.1 How the Linux eBPF probes work (no C needed)
+- On Linux, each `Trace.span` begin and end calls one of two tiny exported functions, `kp_probe_begin(id, arg)` and `kp_probe_end(id, arg)`. They are pure Swift, `@_cdecl`, and `@inline(never)`.
+- bpftrace attaches **uprobes** to those stable symbols. The span ID is a small integer from a generated enum, so the mapping is stable and readable.
+- `Tools/bpf/` ships ready scripts:
+  - `spans.bt`: latency histograms per span.
+  - `kdf.bt`: Argon2 time and RSS growth.
+  - `alloc.bt`: malloc/free counts inside a span.
+  - `io.bt`: syscalls during save, including fsync latency.
+  - `offcpu.bt`: blocking inside the merge and save paths.
+- The nightly CI job runs `kpbench` over the corpus under each script and uploads histograms and flame graphs as artifacts.
+- If uprobes on Swift symbols prove unreliable, fall back to USDT via the Rust `usdt` crate, following the Rust-over-C policy in 9c.
 
-## 7. Performance budgets (enforced in CI via D)
+### 6.2 Span catalog (initial)
+- **Unlock:** `unlock.total`, `kdf.argon2`, `kdf.aes`, `kdbx.header`, `kdbx.decrypt`, `kdbx.inflate`, `kdbx.xml`
+- **Search:** `index.build`, `search.query`
+- **Merge:** `merge.plan`, `merge.apply`
+- **Save:** `save.serialize`, `save.encrypt`, `save.fsync`, `save.replace`
+- **Inbox:** `inbox.seal`, `inbox.drain`
+- **AutoFill:** `autofill.launch`, `autofill.unlock`, `autofill.firstResult`
+- **App:** `app.launch`, `ui.firstFrame`
 
-| Scenario (iPhone 12 class) | Budget |
+### 6.3 Privacy rules for telemetry
+- Spans carry only sizes, counts and durations, never titles, URLs, usernames or field contents.
+- `os.Logger` interpolations default to `.private`. A CI lint (SwiftLint custom rule) fails the build if entry fields are logged.
+- `kpbench --trace out.json` writes Perfetto/Chrome trace format, viewable at ui.perfetto.dev.
+
+## 7. Performance budgets (gated in CI via layer D)
+
+| Scenario (iPhone 12 class device) | Budget |
 |---|---|
-| Argon2id default params (64 MiB, t=2..3) | ≤ 1 s (user-tunable target) |
-| Unlock 5k-entry / 10 MB DB after KDF | ≤ 300 ms |
-| AutoFill: tap → candidates shown (warm file, quick unlock) | ≤ 700 ms, peak RSS ≤ 80 MB |
+| Argon2id default params (64 MiB, 2–3 iterations) | ≤ 1 s (user-tunable target) |
+| Unlock 5k entries / 10 MB DB, excluding KDF | ≤ 300 ms |
+| AutoFill: open → candidates shown (quick unlock, cached DB) | ≤ 700 ms, peak memory ≤ 80 MB |
 | Search keystroke → results (10k entries) | ≤ 16 ms |
-| Merge two 5k-entry DBs | ≤ 500 ms |
-| Save (encrypt+write) 10 MB DB | ≤ 400 ms, atomic |
+| Merge two 5k-entry databases (plan + apply) | ≤ 500 ms |
+| Save 10 MB database (encrypt + atomic write) | ≤ 400 ms |
+| Quick-create sheet visible from App Intent | ≤ 500 ms |
 | Cold launch → file list | ≤ 400 ms |
 
-## 8. Testing & CI
-- **Linux CI (GitHub Actions)**: `swift test` for all `KP*` packages, KeePassXC interop corpus, property tests (merge), fuzz smoke run, `kpbench` perf + bpftrace/perf artifacts.
-- **macOS CI**: build apps, XCUITest smoke flows, XCTMetric baselines on simulator (+ nightly on a physical device if available), `xctrace` trace artifacts.
-- Golden-file KDBX corpora (KDBX3/4, all ciphers/KDFs, key files, history-heavy, attachment-heavy, corrupted).
-- Snapshot tests for SwiftUI (light/dark, Dynamic Type XXL, iPad).
+Linux CI enforces the core-only rows (KDF, parse, search, merge, serialize) through `kpbench` baselines. macOS CI enforces the rest on the simulator, and an optional nightly job runs on a real device.
+
+## 8. Testing and CI
+- **Unit and property tests:** swift-testing for all core targets. Property tests for merge, the generator and OTP. RFC test vectors for TOTP.
+- **Interop corpus:** KDBX 3.1/4.0/4.1 files covering every cipher and KDF, key files, history-heavy and attachment-heavy files, 10k+ entries, and corrupted or truncated files. Generated by script with `keepassxc-cli`, not hand-committed binaries.
+- **Fuzzing:** libFuzzer on Linux for KDBX input and merge. Short runs on each PR, 1 hour nightly.
+- **UI tests:** XCUITest smoke flows (open, unlock, search, copy, create, save, merge review), plus snapshot tests across light/dark, the largest Dynamic Type size and iPad.
+- **GitHub Actions:**
+  - `linux.yml` on each PR: build, test, a short fuzz run, `kpbench` gates.
+  - `macos.yml` on each PR: Xcode build of all targets, unit and UI tests, `XCTMetric` gates.
+  - `nightly.yml`: long fuzz run, bpftrace profiling artifacts, `xctrace` traces, `cargo-deny` once Rust exists.
+  - Actions are free for public repos. If the repo is private, macOS minutes are the main cost.
+- **Static checks:** SwiftLint, swift-format, dependency license check.
 
 ## 9. Decisions (resolved)
-1. **License: MIT.** Clean-room only: KeePassium/KeePassDX/KeePassXC are GPL, so we read specs (KDBX format docs) and observe behavior, never copy their code. Third-party deps must be MIT/BSD/Apache/CC0 compatible (Argon2 reference impl is CC0/Apache).
-2. **Minimum iOS: 18** (raised from 17 so KDBXKit, whose floor is iOS 18 / Swift 6.1, can be used without forking; also unlocks the AutoFill save-password and passkey provider APIs as baseline, not enhancements).
-3. **Storage: local files only, via the Files app** (document picker, security-scoped bookmarks, `UIDocumentPickerViewController`/`fileImporter`, Files-provider locations work transparently). No cloud SDKs, no WebDAV/SFTP. `KPStorage` shrinks to a local-file + bookmark layer.
-4. **Build env:** see Section 10.
-5. **Name: KeePasIOS** (repo `keepassios`). Bundle ID TBD.
+1. **License: MIT.** The work is clean-room. We read specs and observe the GPL apps' behaviour, never copy their code. Dependencies must be MIT/BSD/Apache/CC0.
+2. **Minimum iOS: 18.** This lets us use KDBXKit without forking, and the AutoFill save-credential and passkey APIs become baseline.
+3. **Storage: local files through the Files app only.**
+   - Files are opened with the system picker and kept with bookmarks.
+   - Whatever location the user picks in Files, including another app's File Provider, works transparently.
+   - We ship no cloud SDKs.
+4. **Name: KeePasIOS.** The bundle ID is `dev.guilhermenl.keepassios`, taken from the existing project.
+5. **Build environment:**
+   - Xcode on the owner's Mac is the primary build.
+   - GitHub Actions runs Linux CI for the core packages and macOS CI for the apps.
+   - The Claude cloud container is Linux with no Swift toolchain and blocked downloads, so it can only write code, not build it.
 
 ## 9b. Build vs. buy: handroll only when necessary
-Rule: use a maintained MIT/BSD/Apache/CC0 dependency unless it fails a hard requirement (license, security, extension memory, iOS 18, correctness). Every handrolled component needs a one-line justification in this table.
+**Rule:** use a maintained MIT/BSD/Apache/CC0 dependency unless it fails a hard requirement (license, security, extension memory, iOS 18, correctness). Every handrolled component needs a justification in this table.
 
-| Need | Use (don't handroll) | Handroll? |
+| Need | Use | Handroll? |
 |---|---|---|
-| AES, ChaCha20, SHA, HMAC, HKDF | CryptoKit / [swift-crypto](https://github.com/apple/swift-crypto) | No |
-| Argon2 | Vendored reference C impl (CC0/Apache) first, Rust `argon2` crate if profiling demands (section 9c), or [Argon2Kit](https://github.com/dnrops/Argon2Kit)-style wrapper | No (wrapper only) |
-| Twofish / Salsa20 (legacy) | Small vetted C impl, only if needed for old DBs | Defer; skip until a user needs it |
-| gzip | zlib (system) / `Compression` framework | No |
-| KDBX 3.1/4.x parse+write, SecureBytes | **[KDBXKit](https://github.com/shadone/KDBXKit)** (BSD-2, KeePassXC-tested, streaming attachments, mlock'd secrets) as the base | Evaluate first (spike below); fork if gaps |
-| KDBX parser alt. | KeePassKit is GPL-3 (incompatible with MIT) | No |
-| XML | Foundation `XMLParser` (SAX) | No |
-| Logging / metrics / CLI | swift-log, swift-metrics, swift-argument-parser | No |
-| Tracing | `OSSignposter` (Apple) + thin `Trace.span` wrapper | Thin wrapper only |
+| KDBX 3.1/4.x parse + KDBX 4 write, Argon2, AES-KDF, ChaCha20/Salsa20 inner stream, SecureBytes | **[KDBXKit](https://github.com/shadone/KDBXKit)** (BSD-2, vendored Argon2 reference implementation, streaming attachments) | No; fork only if the spike finds gaps |
+| AES, ChaCha20, SHA, HMAC, HKDF, HPKE, X25519 | CryptoKit / swift-crypto | No |
+| Twofish, KDB 1.x | Deferred; if ever needed, a small MIT/BSD library | Not now |
+| KDBX 3.1 write | Not supported; open 3.1 files and offer to save as KDBX 4 | No |
+| gzip, XML | zlib / Foundation (inside KDBXKit) | No |
+| YubiKey challenge-response | YubiKit (Apache-2) | No |
+| QR scanning | VisionKit `DataScannerViewController` | No |
+| Logging, metrics, CLI | swift-log, swift-metrics, swift-argument-parser | No |
+| Tracing | `OSSignposter` + `Trace.span` wrapper + uprobe markers | Thin wrapper only |
 | Biometrics, Keychain, Secure Enclave | LocalAuthentication / Security / CryptoKit | No |
-| Passkeys, AutoFill, TOTP codes | AuthenticationServices; TOTP via CryptoKit HMAC (~30 lines) | Tiny TOTP only |
-| Files access | `fileImporter` / `UIDocumentPickerViewController`, bookmarks, `NSFileCoordinator` | No |
-| Fuzzing / property tests | SwiftPM libFuzzer, swift-testing, [SwiftCheck](https://github.com/typelift/SwiftCheck) | No |
-| **Merge engine** | Nothing usable exists (KDBXKit lists no merge/history) | **Yes, core differentiator** |
-| **Encrypted quick-create inbox** | CryptoKit primitives (HPKE / Curve25519) | Protocol glue only |
-| **Diff/merge UI, quick-create flows, diagnostics screen** | SwiftUI | Yes (product code) |
+| AutoFill, passkeys | AuthenticationServices | No |
+| TOTP | about 100 lines on CryptoKit HMAC (libraries exist but are tiny and not worth a dependency) | Yes, trivial |
+| Files access, atomic save | `fileImporter`, bookmarks, `NSFileCoordinator`, `FileManager.replaceItemAt` | No |
+| Testing, fuzzing | swift-testing, libFuzzer via SwiftPM, [SwiftCheck](https://github.com/typelift/SwiftCheck) | No |
+| CSV import | [swift-csv](https://github.com/swiftcsv/SwiftCSV) (MIT) | Mapping only |
+| **Merge engine** | Nothing usable exists | **Yes: core differentiator** |
+| **Quick-create inbox** | CryptoKit HPKE | Protocol glue only |
+| **Merge review UI, quick-create flows, diagnostics** | SwiftUI | Yes (product code) |
 
-**KDBXKit spike (first task):** with the min iOS now 18, its deployment floor no longer blocks us. It is still single-maintainer with very low adoption and has no merge or history API. The spike checks: KDBX3 write need, round-trip fidelity of unknown XML/custom data/history, extension memory use, and API access needed for merge. Outcomes: (a) depend on it as-is (expected), (b) fork under BSD-2 with attribution and upstream patches, (c) as a last resort handroll only the reader/writer on top of CryptoKit + vendored Argon2.
+**KDBXKit spike (M0, first task).** KDBXKit has a single maintainer and low adoption, and it has no merge or history API. The spike checks seven things:
+1. Lossless round-trip of unknown XML, custom data, history and attachments.
+2. Memory and latency against the AutoFill budgets.
+3. Whether its model exposes enough for merge (timestamps, `LocationChanged`, `DeletedObjects`, history).
+4. Whether it can be cancelled during Argon2 and reports progress.
+5. Whether it builds under Swift 6 strict concurrency.
+6. Interop with the KeePassXC corpus.
+7. Code quality and test coverage, since we're betting on it.
 
-## 9c. Lower-level languages (only when measured)
-- Default is Swift. Drop to a lower-level language only when a profile (section 6, budgets in section 7) shows a Swift hot path missing its budget after normal optimization, and the gain justifies the FFI and build cost.
-- **Preference order: Rust over C over assembly.** C only for an existing vetted dependency we don't rewrite (e.g. the Argon2 reference impl) or when Rust genuinely can't do it. Assembly/intrinsics: last resort, only inside an already-chosen Rust/C library, never handwritten by us.
-- Rust candidates, in order of likelihood: Argon2 (the RustCrypto `argon2` crate, replacing the vendored C), streaming XML/KDBX parse, search indexing, merge diff of very large DBs. Rejected unless profiling says otherwise: everything else.
-- Integration: Rust crate built as a static lib for `aarch64-apple-ios`, simulator and macOS (XCFramework via `cargo` + a build script or SwiftPM binary target), C ABI via `cbindgen`/UniFFI, `#![forbid(unsafe_code)]` where possible, secrets zeroized (`zeroize`), and a Swift reference implementation kept beside it as a correctness oracle plus a differential/fuzz test. Rust crates must be MIT/Apache; `cargo-deny` and `cargo-audit` in CI.
-- Each use needs a benchmark showing the win (via `kpbench` and XCTMetric baselines) recorded in the PR; if the gain is under about 20%, keep Swift.
-- Observability applies equally: Rust spans emit through the same `Trace.span` backends (signpost on Apple, USDT on Linux), so the profile stays end to end.
+There are three possible verdicts:
+- **(a)** Depend on a pinned version (expected).
+- **(b)** Fork it under BSD-2 with attribution and send patches upstream.
+- **(c)** Last resort: write our own reader and writer on CryptoKit plus the Argon2 reference C.
 
-## 10. Immediate next steps
-1. Confirm §9 decisions.
-2. Scaffold `Package.swift` workspace with `KPCrypto`, `KPFormat`, `KPModel`, `KPObservability`, and CI for Linux.
-3. Implement KDBX4 reader against KeePassXC-generated vectors, with signposts + `kpbench` from the first commit.
-4. Then writer → merge → app shell.
+## 9c. Lower-level languages (only when profiling demands it)
+- **When:** Swift is the default. Drop lower only when a profile from section 6 shows a hot path missing its section 7 budget after normal Swift optimization.
+- **Order of preference: Rust, then C, then assembly.**
+  - C is only for vetted existing code we don't rewrite, such as the Argon2 reference implementation inside KDBXKit.
+  - Assembly or intrinsics only come from inside an already-chosen library. We never write them by hand.
+- **Likely candidates:** Argon2 (the RustCrypto `argon2` crate, if the C version underperforms on device), search indexing at large scale, and merge diffing of very large databases.
+- **Integration:**
+  - Build a static XCFramework for device, simulator and macOS, and expose it through UniFFI (or cbindgen and a C ABI).
+  - Zeroize secrets with the `zeroize` crate, and keep unsafe code to a minimum.
+  - Keep a Swift reference implementation alongside as a differential-test oracle.
+  - Rust crates must be MIT or Apache. `cargo-deny` and `cargo-audit` run in CI.
+- **Bar:** the PR must show the gain with `kpbench` and `XCTMetric`. If it's under about 20%, keep Swift.
+- **Observability:** Rust code emits the same spans, through a callback into `Trace` or the `usdt` crate on Linux.
+
+## 10. Security plan
+- **Threat model** in `docs/threat-model.md`, covering:
+  - a stolen locked or unlocked device
+  - a malicious database file
+  - memory pressure and memory dumps in extensions
+  - clipboard snooping
+  - tampering with the file by a File Provider
+  - App Group container exposure
+  - quick-create inbox replay or tampering (the HPKE `info` binds each item to a database UUID and a sequence number)
+- **Parser hardening:**
+  - Argon2 parameters, header sizes and decompression ratios are bounded before any allocation.
+  - In extensions, a too-expensive KDF shows "Open in app" instead of being killed by the system.
+- **Clipboard:** copying OTP codes and passwords never syncs to other devices.
+- **Supply chain:** pinned dependencies, an SBOM, and reproducible build notes.
+- **Before 1.0:** an external security review.
+- **App Store:** password managers use standard cryptography, so the export compliance answer is "exempt". Set `ITSAppUsesNonExemptEncryption = NO`, and confirm with Apple's guidance at submission.
+
+## 11. Risks
+| Risk | Mitigation |
+|---|---|
+| KDBXKit is abandoned or has bugs | Pin the version; the spike's verdict (b) is to fork it; the interop corpus catches regressions |
+| AutoFill can't reach files in another app's File Provider | App Group cached copy plus the inbox (section 3) |
+| Argon2 with large memory settings exceeds the extension memory limit | Bounded parameters; "Open in app" fallback; suggest lowering settings on the Diagnostics screen |
+| Merge loses data | Three-way merge with base, losing versions kept in history, dry-run review, property tests plus a nothing-lost invariant, backups before every merge |
+| uprobes on Swift symbols are brittle | `@_cdecl` stable markers; `usdt` crate fallback |
+| Building only through CI is slow | Develop on a Mac; keep Linux core tests fast |
+
+## 12. Immediate next steps (M0)
+1. Clean up the template project:
+   - Set the deployment target to 18.0 (currently 26.5) and Swift to 6 (currently 5.0).
+   - Remove the SwiftData `Item` and `ContentView` samples.
+   - Add an App Group and Keychain access group.
+2. Add `Packages/KeePasCore` (KPModel, KPObservability, kpbench) with KDBXKit as a dependency, plus `linux.yml` and `macos.yml`.
+3. Run the KDBXKit spike (9b) and record the verdict in `docs/adr/0001-kdbx-library.md`.
+4. Add `Trace.span`, the uprobe markers and `Tools/bpf/spans.bt`, then profile `kpbench open` on the corpus under bpftrace (Linux) and Instruments (Mac).
+5. Start M1.
