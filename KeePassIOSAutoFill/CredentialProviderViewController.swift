@@ -6,8 +6,9 @@ import UIKit
 /// KeePassIOS from the password or one-time code suggestions; it hosts the
 /// SwiftUI picker and hands the chosen credential back to the system.
 ///
-/// The extension only reads databases: it never writes the file, so it
-/// can't conflict with the app.
+/// New entries saved here go to the original file when the extension can
+/// reach it, otherwise to a pending copy the app merges later (see
+/// `ExtensionDatabaseFile`).
 final class CredentialProviderViewController: ASCredentialProviderViewController {
     private lazy var model = AutoFillModel { [weak self] completion in
         self?.finish(completion)
