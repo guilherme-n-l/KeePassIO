@@ -133,8 +133,10 @@
                             get: { Double(settings.length) },
                             set: { settings.length = Int($0.rounded()) }
                         ),
-                        in: 4...128,
-                        step: 1
+                        // No step: on iOS 26 a stepped slider draws a tick for
+                        // every step, which at 125 steps reads as a second bar.
+                        // The binding rounds to whole characters instead.
+                        in: 4...128
                     ) {
                         Text("Length")
                     } minimumValueLabel: {
