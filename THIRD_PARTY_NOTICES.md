@@ -20,7 +20,7 @@ KeePassXC's C64 (Apple logo) is GPL-2.0-or-later and is not included; that icon 
 
 ### App icon
 
-`Design/AppIcon.svg`, from which `scripts/make-app-icon.sh` renders the app icon, is the project owner's adaptation of an apple icon from [SVG Repo](https://www.svgrepo.com/). SVG Repo marks its icons as free for commercial use; check the original icon's page for its exact license before redistributing the artwork on its own.
+`Design/AppIcon.svg`, from which `scripts/make-app-icon.sh` renders the app icon, is the project owner's adaptation of an apple icon from [SVG Repo](https://www.svgrepo.com/), licensed under [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/).
 
 ## Vendored code
 
