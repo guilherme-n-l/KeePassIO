@@ -62,7 +62,7 @@ struct UnlockView: View {
                                 .foregroundStyle(.primary)
                             Spacer(minLength: 0)
                             Text(keyFileName ?? String(localized: "Choose…"))
-                                .foregroundStyle(keyFileName == nil ? .tint : .secondary)
+                                .foregroundStyle(keyFileName == nil ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondary))
                                 .lineLimit(1)
                                 .truncationMode(.middle)
                         }
