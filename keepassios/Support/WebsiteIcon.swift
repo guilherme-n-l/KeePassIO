@@ -6,12 +6,8 @@ import UIKit
 /// turned on both network access and website icons in Settings.
 ///
 /// LinkPresentation reads the page's declared icons (apple-touch-icon,
-/// rel=icon, then /favicon.ico); the result is scaled to 64×64 PNG, the
-/// size other KeePass apps use for custom icons, so it stays small in
-/// the database file.
+/// rel=icon, then /favicon.ico); the result is stored as an `IconImage`.
 nonisolated enum WebsiteIcon {
-    static let pixelSize: CGFloat = 64
-
     /// The URL to ask for, or nil when the entry's URL isn't a website.
     static func pageURL(for entryURL: String) -> URL? {
         let trimmed = entryURL.trimmingCharacters(in: .whitespaces)
@@ -43,7 +39,7 @@ nonisolated enum WebsiteIcon {
             let iconProvider = metadata.iconProvider
         else { return nil }
         guard let image = await loadImage(from: iconProvider) else { return nil }
-        return scaledPNG(image)
+        return IconImage.png(from: image)
     }
 
     private static func loadImage(from provider: NSItemProvider) async -> UIImage? {
@@ -53,8 +49,15 @@ nonisolated enum WebsiteIcon {
             }
         }
     }
+}
 
-    private static func scaledPNG(_ image: UIImage) -> Data? {
+/// Custom icons as stored in databases: 64×64 PNG, the size other KeePass
+/// apps use, so they stay small in the file.
+nonisolated enum IconImage {
+    static let pixelSize: CGFloat = 64
+
+    /// The image scaled to fit 64×64 (centered, aspect kept), as PNG.
+    static func png(from image: UIImage) -> Data? {
         let format = UIGraphicsImageRendererFormat()
         format.scale = 1
         let size = CGSize(width: pixelSize, height: pixelSize)

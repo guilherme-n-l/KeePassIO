@@ -1,4 +1,5 @@
 import KPModel
+import KPSession
 import SwiftUI
 import UIKit
 
@@ -8,6 +9,20 @@ import UIKit
 struct ItemIcon: View {
     let iconID: Int
     let customIcon: Data?
+
+    init(iconID: Int, customIcon: Data?) {
+        self.iconID = iconID
+        self.customIcon = customIcon
+    }
+
+    /// How an item would look with `choice` (for previews before saving).
+    init(choice: IconChoice, in database: Database?) {
+        switch choice {
+        case .standard(let id): self.init(iconID: id, customIcon: nil)
+        case .custom(let id): self.init(iconID: 0, customIcon: database?.meta.customIcons[id])
+        case .newCustom(let data): self.init(iconID: 0, customIcon: data)
+        }
+    }
 
     init(entry: Entry, in database: Database?) {
         iconID = entry.iconID

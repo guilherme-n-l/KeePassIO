@@ -1,12 +1,32 @@
 import KPModel
 import SwiftUI
 
+/// The entry or group whose icon is being chosen.
+enum IconTarget: Identifiable {
+    case entry(UUID)
+    case group(UUID)
+
+    var id: UUID {
+        switch self {
+        case .entry(let id), .group(let id): id
+        }
+    }
+}
+
+/// Where a search looks: the group on screen (with its subgroups) or the
+/// whole database.
+enum SearchScope: Hashable {
+    case group
+    case database
+}
+
 /// The search field at the top of every group screen, with the
 /// "This Group / All Groups" switch in subgroups.
 ///
-/// It's part of the page rather than the system search bar: the system
-/// bar sat at the bottom on the database's top level and at the top in
-/// subgroups (scopes move it), and could vanish after going back.
+/// It's the first thing on the page rather than the system search bar:
+/// the system bar sat at the bottom on the database's top level and at
+/// the top in subgroups (scopes move it), and could vanish after going
+/// back. It's drawn like the system field.
 struct GroupSearchBar: View {
     @Binding var query: String
     @Binding var scope: SearchScope
@@ -38,7 +58,7 @@ struct GroupSearchBar: View {
                     }
                 }
                 .padding(.horizontal, 12)
-                .padding(.vertical, 9)
+                .frame(minHeight: 40)
                 .background(Color(uiColor: .tertiarySystemFill), in: Capsule())
                 if isFocused || !query.isEmpty {
                     Button("Cancel") {
@@ -59,9 +79,6 @@ struct GroupSearchBar: View {
         }
         .animation(.snappy, value: isFocused)
         .animation(.snappy, value: query.isEmpty)
-        .padding(.horizontal, 16)
-        .padding(.vertical, 8)
-        .background(.bar)
     }
 }
 

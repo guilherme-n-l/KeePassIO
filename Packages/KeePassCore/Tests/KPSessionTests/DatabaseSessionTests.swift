@@ -80,6 +80,32 @@ struct DatabaseSessionTests {
         #expect(session.database?.location(ofGroup: outer.id)?.parentID == rootID)
     }
 
+    @Test func iconsCanBeSetOnEntriesAndGroups() async throws {
+        let session = makeSession()
+        try await session.create(name: "Personal", key: key)
+        let group = Group(name: "Bank")
+        try session.addGroup(group)
+        let entry = session.newEntry(title: "Card")
+        try session.addEntry(entry, to: group.id)
+        let png = Data([0x89, 0x50, 0x4E, 0x47, 1])
+
+        try session.setIcon(.standard(66), forEntry: entry.id)
+        #expect(session.database?.entry(withID: entry.id)?.iconID == 66)
+
+        try session.setIcon(.newCustom(png), forGroup: group.id)
+        let customID = try #require(session.database?.group(withID: group.id)?.customIconID)
+        #expect(session.database?.meta.customIcons[customID] == png)
+
+        try session.setIcon(.custom(customID), forEntry: entry.id)
+        #expect(session.database?.entry(withID: entry.id)?.customIconID == customID)
+        #expect(session.database?.entry(withID: entry.id)?.iconID == 66)
+
+        // Back to a standard icon drops the custom one.
+        try session.setIcon(.standard(37), forGroup: group.id)
+        #expect(session.database?.group(withID: group.id)?.customIconID == nil)
+        #expect(session.database?.group(withID: group.id)?.iconID == 37)
+    }
+
     @Test func wrongKeyFails() async throws {
         try await makeSession().create(name: "Personal", key: key)
         let session = makeSession()

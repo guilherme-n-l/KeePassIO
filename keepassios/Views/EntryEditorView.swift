@@ -16,6 +16,9 @@ struct EntryEditorView: View {
     @State private var isShowingGenerator = false
     @State private var newFieldName = ""
     @State private var errorMessage: String?
+    /// An icon chosen here, applied when the entry is saved.
+    @State private var pendingIcon: IconChoice?
+    @State private var isChoosingIcon = false
 
     init(session: DatabaseSession, entry: Entry, isNew: Bool, groupID: UUID?) {
         self.session = session
@@ -28,6 +31,23 @@ struct EntryEditorView: View {
     var body: some View {
         Form {
             Section {
+                Button {
+                    isChoosingIcon = true
+                } label: {
+                    HStack(spacing: 12) {
+                        if let pendingIcon {
+                            ItemIcon(choice: pendingIcon, in: session.database)
+                        } else {
+                            ItemIcon(entry: entry, in: session.database)
+                        }
+                        Text("Icon")
+                            .foregroundStyle(.primary)
+                        Spacer()
+                        Text("Change")
+                            .foregroundStyle(.tint)
+                    }
+                }
+                .accessibilityIdentifier("editor.icon")
                 TextField("Title", text: $entry.title)
                     .accessibilityIdentifier("editor.title")
                 TextField("User Name", text: $entry.userName)
@@ -110,6 +130,17 @@ struct EntryEditorView: View {
                     .accessibilityIdentifier("editor.done")
             }
         }
+        .sheet(isPresented: $isChoosingIcon) {
+            NavigationStack {
+                IconPickerView(
+                    database: session.database,
+                    current: pendingIcon ?? IconChoice(iconID: entry.iconID, customIconID: entry.customIconID),
+                    websiteURL: model.settings.mayDownloadFavicons && !entry.url.isEmpty ? entry.url : nil
+                ) { choice in
+                    pendingIcon = choice
+                }
+            }
+        }
         .sheet(isPresented: $isShowingGenerator) {
             NavigationStack {
                 GeneratorView { generated in
@@ -146,9 +177,14 @@ struct EntryEditorView: View {
             } else {
                 try session.updateEntry(entry)
             }
-            if entry.customIconID == nil || (previousURL != nil && previousURL != entry.url), !entry.url.isEmpty {
-                // Runs after the sheet closes; does nothing unless website
-                // icons are turned on in Settings.
+            if let pendingIcon {
+                try session.setIcon(pendingIcon, forEntry: entry.id)
+            }
+            let urlChanged = isNew || (previousURL != nil && previousURL != entry.url)
+            if pendingIcon == nil, urlChanged, entry.customIconID == nil, !entry.url.isEmpty {
+                // A new or changed website gets its icon, unless the user
+                // picked one. Runs after the sheet closes; does nothing
+                // unless website icons are turned on in Settings.
                 let (model, session, id) = (model, session, entry.id)
                 Task { await model.downloadIcons(for: [id], in: session) }
             }

@@ -6,17 +6,10 @@ import KPSearch
 import KPSession
 import SwiftUI
 
-/// Where a search looks: the group on screen (with its subgroups) or the
-/// whole database.
-enum SearchScope: Hashable {
-    case group
-    case database
-}
-
 /// The contents of one group, with search, drag-and-drop moves and
 /// long-press actions.
 struct GroupView: View {
-    @Environment(AppModel.self) private var model
+    @Environment(AppModel.self) var model
     @Environment(\.openURL) private var openURL
     let session: DatabaseSession
     let databaseID: UUID
@@ -28,6 +21,7 @@ struct GroupView: View {
     @State private var editingEntry: Entry?
     @State private var editingExistingEntry: Entry?
     @State private var moving: DraggedItem?
+    @State private var iconTarget: IconTarget?
     @State private var isDownloadingIcons = false
     @State private var isAddingGroup = false
     @State private var newGroupName = ""
@@ -40,9 +34,19 @@ struct GroupView: View {
 
     private var group: KPModel.Group? { session.database?.group(withID: groupID) }
 
+    /// The top level is titled with the database's name in the library
+    /// (its alias, if set): root groups are often unnamed or "Root".
+    private var title: String {
+        if isRoot, let reference = model.databases.first(where: { $0.id == databaseID }) {
+            return reference.name
+        }
+        return group?.name ?? ""
+    }
+
     var body: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 24) {
+                GroupSearchBar(query: $query, scope: $scope, showsScope: !isRoot)
                 if !query.isEmpty {
                     searchResults
                 } else if let group {
@@ -76,10 +80,7 @@ struct GroupView: View {
         }
         .background(Color(uiColor: .systemGroupedBackground))
         .scrollDismissesKeyboard(.immediately)
-        .safeAreaInset(edge: .top, spacing: 0) {
-            GroupSearchBar(query: $query, scope: $scope, showsScope: !isRoot)
-        }
-        .navigationTitle(group?.name ?? "")
+        .navigationTitle(title)
         .toolbar { toolbar }
         .sensoryFeedback(.success, trigger: copyCount)
         .sensoryFeedback(.impact, trigger: moveCount)
@@ -91,6 +92,11 @@ struct GroupView: View {
         .sheet(item: $editingExistingEntry) { entry in
             NavigationStack {
                 EntryEditorView(session: session, entry: entry, isNew: false, groupID: nil)
+            }
+        }
+        .sheet(item: $iconTarget) { target in
+            NavigationStack {
+                iconPicker(for: target)
             }
         }
         .sheet(item: $moving) { item in
@@ -337,6 +343,7 @@ extension GroupView {
         Divider()
         Button("Edit", systemImage: "pencil") { editingExistingEntry = entry }
         Button("Move To…", systemImage: "folder") { moving = DraggedItem(kind: .entry, id: entry.id) }
+        Button("Change Icon…", systemImage: "photo") { iconTarget = .entry(entry.id) }
         if model.settings.mayDownloadFavicons, !entry.url.isEmpty {
             Button("Download Icon", systemImage: "photo.badge.arrow.down") {
                 Task { await model.downloadIcons(for: [entry.id], in: session) }
@@ -351,6 +358,7 @@ extension GroupView {
     @ViewBuilder
     func groupActions(for group: KPModel.Group) -> some View {
         Button("Move To…", systemImage: "folder") { moving = DraggedItem(kind: .group, id: group.id) }
+        Button("Change Icon…", systemImage: "photo") { iconTarget = .group(group.id) }
         Button("Delete", systemImage: "trash", role: .destructive) {
             try? session.deleteGroup(group.id)
         }
