@@ -17,6 +17,10 @@ struct UnlockView: View {
     @State private var password = ""
     @State private var keyFileData: Data?
     @State private var keyFileName: String?
+    /// The key file picked on this screen; nil when it came from the
+    /// remembered bookmark.
+    @State private var keyFileURL: URL?
+    @State private var rememberKeyFile = true
     @State private var isPickingKeyFile = false
     @State private var keyFileError: String?
     @FocusState private var passwordFocused: Bool
@@ -49,16 +53,30 @@ struct UnlockView: View {
                     .submitLabel(.go)
                     .onSubmit(unlock)
                     .accessibilityIdentifier("unlock.password")
-                Button {
-                    isPickingKeyFile = true
-                } label: {
-                    LabeledContent("Key File", value: keyFileName ?? String(localized: "None"))
+                HStack {
+                    Button {
+                        isPickingKeyFile = true
+                    } label: {
+                        LabeledContent("Key File", value: keyFileName ?? String(localized: "None"))
+                            .foregroundStyle(.primary)
+                    }
+                    .buttonStyle(.borderless)
+                    .accessibilityIdentifier("unlock.keyFile")
+                    if keyFileData != nil {
+                        Button {
+                            clearKeyFile()
+                        } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .foregroundStyle(.secondary)
+                        }
+                        .buttonStyle(.borderless)
+                        .accessibilityLabel("Clear Key File")
+                        .accessibilityIdentifier("unlock.clearKeyFile")
+                    }
                 }
                 if keyFileData != nil {
-                    Button("Remove Key File", role: .destructive) {
-                        keyFileData = nil
-                        keyFileName = nil
-                    }
+                    Toggle("Remember Key File", isOn: $rememberKeyFile)
+                        .accessibilityIdentifier("unlock.rememberKeyFile")
                 }
                 if QuickUnlock.isAvailable {
                     Toggle("Unlock with \(QuickUnlock.biometryName) Next Time", isOn: $rememberWithBiometrics)
@@ -104,7 +122,13 @@ struct UnlockView: View {
         .onDisappear {
             model.lockedByUser.remove(reference.id)
         }
-        .task { await offerQuickUnlock() }
+        .task {
+            // Face ID doesn't need the key file (the stored key includes
+            // it), so don't make it wait for the file to be read.
+            async let keyFile: Void = loadRememberedKeyFile()
+            await offerQuickUnlock()
+            await keyFile
+        }
         .onChange(of: scenePhase) { _, phase in
             switch phase {
             case .background:
@@ -123,24 +147,14 @@ struct UnlockView: View {
         }
     }
 
-    /// Reads the chosen key file through file coordination, so a file in
-    /// iCloud Drive or another provider is downloaded first. The file is
-    /// shown as selected only once its contents were actually read.
+    /// Reads the chosen key file. It is shown as selected only once its
+    /// contents were actually read.
     private func loadKeyFile(from url: URL) async {
         keyFileData = nil
         keyFileName = nil
+        keyFileURL = nil
         keyFileError = nil
-        let data = await Task.detached { () -> Data? in
-            let scoped = url.startAccessingSecurityScopedResource()
-            defer { if scoped { url.stopAccessingSecurityScopedResource() } }
-            var coordinationError: NSError?
-            var data: Data?
-            NSFileCoordinator().coordinate(readingItemAt: url, options: [], error: &coordinationError) { readURL in
-                data = try? Data(contentsOf: readURL)
-            }
-            return data
-        }.value
-        guard let data, !data.isEmpty else {
+        guard let data = await KeyFile.read(url) else {
             keyFileError = String(
                 localized: "The key file couldn't be read. If it's in iCloud Drive, make sure it's downloaded."
             )
@@ -148,6 +162,29 @@ struct UnlockView: View {
         }
         keyFileData = data
         keyFileName = url.lastPathComponent
+        keyFileURL = url
+    }
+
+    /// Fills in the key file remembered for this database, if any.
+    private func loadRememberedKeyFile() async {
+        guard keyFileData == nil, let bookmark = reference.keyFileBookmark else { return }
+        if let (name, data) = await KeyFile.read(bookmark: bookmark) {
+            keyFileData = data
+            keyFileName = name
+            rememberKeyFile = true
+        } else {
+            keyFileError = String(
+                localized: "The remembered key file couldn't be read. Choose it again, or check that it's downloaded."
+            )
+        }
+    }
+
+    private func clearKeyFile() {
+        keyFileData = nil
+        keyFileName = nil
+        keyFileURL = nil
+        keyFileError = nil
+        Task { await model.setKeyFileBookmark(nil, for: reference.id) }
     }
 
     private func unlock() {
@@ -155,16 +192,26 @@ struct UnlockView: View {
             password: password.isEmpty ? nil : SecretString(password),
             keyFileData: keyFileData
         )
+        // Read the choices now: once unlocked, this view goes away.
+        let withBiometrics = rememberWithBiometrics
+        let keyFileBookmark: Data?? =
+            keyFileData == nil || !rememberKeyFile
+            ? .some(nil)  // forget
+            : keyFileURL.flatMap { KeyFile.bookmark(for: $0) }.map { Optional($0) }  // nil: keep as is
+        let (model, session, id) = (model, session, reference.id)
         Task {
             await session.unlock(with: key)
             guard session.state == .unlocked else { return }
             password = ""
-            if rememberWithBiometrics {
-                try? QuickUnlock.store(key, for: reference.id, validFor: model.settings.quickUnlockValiditySeconds)
+            if withBiometrics {
+                try? QuickUnlock.store(key, for: id, validFor: model.settings.quickUnlockValiditySeconds)
             } else {
-                QuickUnlock.remove(for: reference.id)
+                QuickUnlock.remove(for: id)
             }
-            await model.setQuickUnlock(rememberWithBiometrics, for: reference.id)
+            await model.setQuickUnlock(withBiometrics, for: id)
+            if let keyFileBookmark {
+                await model.setKeyFileBookmark(keyFileBookmark, for: id)
+            }
         }
     }
 

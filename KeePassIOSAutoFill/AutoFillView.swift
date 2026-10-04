@@ -187,11 +187,13 @@ private struct AutoFillUnlockView: View {
         }
         .task {
             canQuickUnlock = reference.quickUnlockEnabled && QuickUnlock.hasKey(for: reference.id)
+            async let keyFile: Void = loadRememberedKeyFile()
             if canQuickUnlock {
                 await quickUnlock()
             } else {
                 passwordFocused = true
             }
+            await keyFile
         }
     }
 
@@ -222,20 +224,19 @@ private struct AutoFillUnlockView: View {
         }
     }
 
+    /// The key file remembered in the app for this database, if any.
+    private func loadRememberedKeyFile() async {
+        guard keyFileData == nil, let bookmark = reference.keyFileBookmark,
+            let (name, data) = await KeyFile.read(bookmark: bookmark)
+        else { return }
+        keyFileData = data
+        keyFileName = name
+    }
+
     private func loadKeyFile(from url: URL) async {
         keyFileData = nil
         keyFileName = nil
-        let data = await Task.detached { () -> Data? in
-            let scoped = url.startAccessingSecurityScopedResource()
-            defer { if scoped { url.stopAccessingSecurityScopedResource() } }
-            var coordinationError: NSError?
-            var data: Data?
-            NSFileCoordinator().coordinate(readingItemAt: url, options: [], error: &coordinationError) { readURL in
-                data = try? Data(contentsOf: readURL)
-            }
-            return data
-        }.value
-        guard let data, !data.isEmpty else {
+        guard let data = await KeyFile.read(url) else {
             message = String(localized: "The key file couldn't be read.")
             return
         }

@@ -91,13 +91,15 @@ final class AppModel {
                 errorMessage = String(localized: "A database named \(fileName) already exists.")
                 return nil
             }
-            let session = DatabaseSession(file: LocalDatabaseFile(url: url), codec: codec)
+            let id = UUID()
+            let session = DatabaseSession(file: Self.cached(LocalDatabaseFile(url: url), id: id), codec: codec)
             try await session.create(
                 name: fileName,
                 key: CompositeKey(password: SecretString(password)),
                 settings: newDatabaseSettings
             )
             let reference = DatabaseReference(
+                id: id,
                 displayName: fileName,
                 bookmark: try BookmarkedFile.makeBookmark(for: url),
                 lastOpened: Date()
@@ -113,6 +115,7 @@ final class AppModel {
 
     func removeDatabase(_ id: UUID) async {
         QuickUnlock.remove(for: id)
+        SharedFiles.removeDatabaseCache(for: id)
         sessions[id]?.lock()
         sessions[id] = nil
         state = (try? await store.update { $0.databases.removeAll { $0.id == id } }) ?? state
@@ -124,9 +127,26 @@ final class AppModel {
             return session
         }
         let file = BookmarkedFile(bookmark: reference.bookmark, displayName: reference.displayName)
-        let session = DatabaseSession(file: file, codec: codec)
+        let session = DatabaseSession(file: Self.cached(file, id: reference.id), codec: codec)
         sessions[reference.id] = session
         return session
+    }
+
+    /// Keeps the App Group copy of the file current for the AutoFill
+    /// extension, which can't always reach the original.
+    private static func cached(_ file: any DatabaseFile, id: UUID) -> any DatabaseFile {
+        guard let cache = SharedFiles.databaseCache(for: id) else { return file }
+        return CachedDatabaseFile(original: file, cache: cache, fallsBackToCache: false)
+    }
+
+    /// Remembers (or, with nil, forgets) which key file a database uses.
+    func setKeyFileBookmark(_ bookmark: Data?, for id: UUID) async {
+        state =
+            (try? await store.update { state in
+                if let index = state.databases.firstIndex(where: { $0.id == id }) {
+                    state.databases[index].keyFileBookmark = bookmark
+                }
+            }) ?? state
     }
 
     func markOpened(_ id: UUID) async {

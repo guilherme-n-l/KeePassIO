@@ -72,8 +72,15 @@ final class AutoFillModel {
         guard reference.id != selected?.id else { return }
         session?.lock()
         selected = reference
+        let original = BookmarkedFile(bookmark: reference.bookmark, displayName: reference.displayName)
+        // Extensions often can't reach files held by other apps' File
+        // Providers; the app keeps a copy in the App Group for that case.
+        let file: any DatabaseFile =
+            SharedFiles.databaseCache(for: reference.id).map {
+                CachedDatabaseFile(original: original, cache: $0, fallsBackToCache: true)
+            } ?? original
         session = DatabaseSession(
-            file: BookmarkedFile(bookmark: reference.bookmark, displayName: reference.displayName),
+            file: file,
             codec: codec,
             memoryLimit: Self.memoryLimit
         )
