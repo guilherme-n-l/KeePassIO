@@ -1,0 +1,22 @@
+#!/usr/bin/env bpftrace
+// Latency histogram (microseconds) for every KeePassIOS span.
+// $1 is the path to the instrumented binary, e.g. .build/release/kpbench.
+// Run through run.sh, which replaces span IDs with their names.
+
+uprobe:$1:kp_probe_begin
+{
+  @start[arg1] = nsecs;
+}
+
+uprobe:$1:kp_probe_end
+/@start[arg1]/
+{
+  @span_us[arg0] = hist((nsecs - @start[arg1]) / 1000);
+  @span_count[arg0] = count();
+  delete(@start[arg1]);
+}
+
+END
+{
+  clear(@start);
+}

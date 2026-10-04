@@ -1,0 +1,48 @@
+#!/usr/bin/env bpftrace
+// Time each KeePassIOS span spends off CPU (blocked on I/O, locks or
+// sleeps), per span, in microseconds. High values in kdf.* or save.* point
+// at contention or slow storage rather than computation.
+// $1 is the path to the instrumented binary.
+
+// Track the innermost open span per thread with a small stack, so time in
+// a nested span is charged to it and the outer span resumes afterwards.
+uprobe:$1:kp_probe_begin
+{
+  @depth[tid] = @depth[tid] + 1;
+  @stack[tid, @depth[tid]] = arg0;
+  @span[tid] = arg0;
+}
+
+uprobe:$1:kp_probe_end
+/@depth[tid]/
+{
+  delete(@stack[tid, @depth[tid]]);
+  @depth[tid] = @depth[tid] - 1;
+  if (@depth[tid] > 0) {
+    @span[tid] = @stack[tid, @depth[tid]];
+  } else {
+    delete(@span[tid]);
+    delete(@depth[tid]);
+  }
+}
+
+tracepoint:sched:sched_switch
+/@span[args.prev_pid]/
+{
+  @off_start[args.prev_pid] = nsecs;
+}
+
+tracepoint:sched:sched_switch
+/@off_start[args.next_pid]/
+{
+  @offcpu_us[@span[args.next_pid]] = sum((nsecs - @off_start[args.next_pid]) / 1000);
+  delete(@off_start[args.next_pid]);
+}
+
+END
+{
+  clear(@span);
+  clear(@stack);
+  clear(@depth);
+  clear(@off_start);
+}

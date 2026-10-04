@@ -1,0 +1,40 @@
+#!/usr/bin/env bpftrace
+// Heap allocations (count and bytes) made inside each KeePassIOS span, via
+// uprobes on libc malloc. Useful for keeping parse and search allocations
+// down. $1 is the path to the instrumented binary.
+
+// Track the innermost open span per thread with a small stack, so time in
+// a nested span is charged to it and the outer span resumes afterwards.
+uprobe:$1:kp_probe_begin
+{
+  @depth[tid] = @depth[tid] + 1;
+  @stack[tid, @depth[tid]] = arg0;
+  @span[tid] = arg0;
+}
+
+uprobe:$1:kp_probe_end
+/@depth[tid]/
+{
+  delete(@stack[tid, @depth[tid]]);
+  @depth[tid] = @depth[tid] - 1;
+  if (@depth[tid] > 0) {
+    @span[tid] = @stack[tid, @depth[tid]];
+  } else {
+    delete(@span[tid]);
+    delete(@depth[tid]);
+  }
+}
+
+uprobe:libc:malloc
+/@span[tid]/
+{
+  @alloc_count[@span[tid]] = count();
+  @alloc_bytes[@span[tid]] = sum(arg0);
+}
+
+END
+{
+  clear(@span);
+  clear(@stack);
+  clear(@depth);
+}
