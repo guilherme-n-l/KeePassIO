@@ -87,9 +87,10 @@ public struct Entry: Sendable, Equatable, Hashable, Identifiable {
     public var foregroundColor: String?
     public var backgroundColor: String?
     public var overrideURL: String?
-    /// Elements from the file this model doesn't interpret, kept verbatim
-    /// so saving doesn't lose data written by other clients.
-    public var unknownXML: [String]
+    /// File-format properties this model doesn't interpret (auto-type
+    /// settings, unknown XML written by other clients, ...), keyed by the
+    /// codec and carried through edits and merges so saving keeps them.
+    public var extras: [String: String]
 
     public init(
         id: UUID = UUID(),
@@ -105,7 +106,7 @@ public struct Entry: Sendable, Equatable, Hashable, Identifiable {
         foregroundColor: String? = nil,
         backgroundColor: String? = nil,
         overrideURL: String? = nil,
-        unknownXML: [String] = []
+        extras: [String: String] = [:]
     ) {
         self.id = id
         self.fields = fields
@@ -120,7 +121,7 @@ public struct Entry: Sendable, Equatable, Hashable, Identifiable {
         self.foregroundColor = foregroundColor
         self.backgroundColor = backgroundColor
         self.overrideURL = overrideURL
-        self.unknownXML = unknownXML
+        self.extras = extras
     }
 
     public var title: String {
@@ -166,7 +167,7 @@ public struct Entry: Sendable, Equatable, Hashable, Identifiable {
             && iconID == other.iconID && customIconID == other.customIconID
             && times.expiry == other.times.expiry && customData == other.customData
             && foregroundColor == other.foregroundColor && backgroundColor == other.backgroundColor
-            && overrideURL == other.overrideURL
+            && overrideURL == other.overrideURL && extras == other.extras
     }
 
     /// A copy suitable for storing in history: same content, no nested
@@ -192,7 +193,9 @@ public struct Group: Sendable, Equatable, Hashable, Identifiable {
     public var customData: [String: String]
     public var tags: [String]
     public var previousParentGroup: UUID?
-    public var unknownXML: [String]
+    /// Format-specific properties this model doesn't interpret; see
+    /// `Entry.extras`.
+    public var extras: [String: String]
 
     public init(
         id: UUID = UUID(),
@@ -207,7 +210,7 @@ public struct Group: Sendable, Equatable, Hashable, Identifiable {
         customData: [String: String] = [:],
         tags: [String] = [],
         previousParentGroup: UUID? = nil,
-        unknownXML: [String] = []
+        extras: [String: String] = [:]
     ) {
         self.id = id
         self.name = name
@@ -221,14 +224,14 @@ public struct Group: Sendable, Equatable, Hashable, Identifiable {
         self.customData = customData
         self.tags = tags
         self.previousParentGroup = previousParentGroup
-        self.unknownXML = unknownXML
+        self.extras = extras
     }
 
     /// Group properties excluding children, for comparing two versions.
     public func hasSameProperties(as other: Group) -> Bool {
         name == other.name && notes == other.notes && iconID == other.iconID
             && customIconID == other.customIconID && customData == other.customData && tags == other.tags
-            && times.expiry == other.times.expiry
+            && times.expiry == other.times.expiry && extras == other.extras
     }
 }
 
@@ -247,7 +250,9 @@ public struct Meta: Sendable, Equatable, Hashable {
     public var customData: [String: String]
     /// When any of the settings above last changed.
     public var settingsChanged: Date
-    public var unknownXML: [String]
+    /// Format-specific properties this model doesn't interpret; see
+    /// `Entry.extras`.
+    public var extras: [String: String]
 
     public init(
         name: String = "",
@@ -260,7 +265,7 @@ public struct Meta: Sendable, Equatable, Hashable {
         customIcons: [UUID: Data] = [:],
         customData: [String: String] = [:],
         settingsChanged: Date = Date(),
-        unknownXML: [String] = []
+        extras: [String: String] = [:]
     ) {
         self.name = name
         self.description = description
@@ -272,7 +277,7 @@ public struct Meta: Sendable, Equatable, Hashable {
         self.customIcons = customIcons
         self.customData = customData
         self.settingsChanged = settingsChanged
-        self.unknownXML = unknownXML
+        self.extras = extras
     }
 }
 

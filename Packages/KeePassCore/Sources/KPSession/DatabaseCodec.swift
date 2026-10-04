@@ -57,14 +57,29 @@ public struct EncryptionSettings: Sendable, Equatable, Hashable {
     )
 }
 
-/// A decoded file: the content plus the settings needed to write it back.
-public struct DecodedDatabase: Sendable, Equatable {
+/// Codec-specific state kept between decoding and encoding the same file
+/// (for KDBX: header details and database metadata the model doesn't
+/// cover). Opaque to everything but the codec that made it.
+public struct FormatContext: @unchecked Sendable {
+    // `any Sendable` values are themselves Sendable; the wrapper only
+    // exists to keep the type opaque.
+    public let value: any Sendable
+
+    public init(_ value: any Sendable) {
+        self.value = value
+    }
+}
+
+/// A decoded file: the content plus what's needed to write it back.
+public struct DecodedDatabase: Sendable {
     public var database: Database
     public var settings: EncryptionSettings
+    public var context: FormatContext?
 
-    public init(database: Database, settings: EncryptionSettings) {
+    public init(database: Database, settings: EncryptionSettings, context: FormatContext? = nil) {
         self.database = database
         self.settings = settings
+        self.context = context
     }
 }
 
@@ -83,5 +98,10 @@ public enum CodecError: Error, Equatable, Sendable {
 /// own module so this layer stays independent of the parsing library.
 public protocol DatabaseCodec: Sendable {
     func decode(_ data: Data, key: CompositeKey, memoryLimit: UInt64?) async throws -> DecodedDatabase
-    func encode(_ database: Database, settings: EncryptionSettings, key: CompositeKey) async throws -> Data
+    func encode(
+        _ database: Database,
+        settings: EncryptionSettings,
+        key: CompositeKey,
+        context: FormatContext?
+    ) async throws -> Data
 }

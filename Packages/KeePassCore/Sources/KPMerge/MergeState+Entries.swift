@@ -129,6 +129,7 @@ extension MergeState {
         result.customData =
             pick(local.customData, remote.customData, base: base.customData, remoteIsNewer: remoteIsNewer).value
         result.iconID = pick(local.iconID, remote.iconID, base: base.iconID, remoteIsNewer: remoteIsNewer).value
+        result.extras = pick(local.extras, remote.extras, base: base.extras, remoteIsNewer: remoteIsNewer).value
         result.customIconID =
             pick(local.customIconID, remote.customIconID, base: base.customIconID, remoteIsNewer: remoteIsNewer).value
 

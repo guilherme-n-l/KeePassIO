@@ -28,7 +28,12 @@ final class InMemoryCodec: DatabaseCodec {
         return DecodedDatabase(database: stored.database, settings: stored.settings)
     }
 
-    func encode(_ database: Database, settings: EncryptionSettings, key: CompositeKey) async throws -> Data {
+    func encode(
+        _ database: Database,
+        settings: EncryptionSettings,
+        key: CompositeKey,
+        context: FormatContext?
+    ) async throws -> Data {
         let token = Data(UUID().uuidString.utf8)
         storage.withLock { $0[token] = Stored(database: database, settings: settings, key: key) }
         return token

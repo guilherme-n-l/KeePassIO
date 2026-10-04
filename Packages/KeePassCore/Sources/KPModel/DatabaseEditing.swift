@@ -178,6 +178,7 @@ extension Database {
             existing.customData = group.customData
             existing.tags = group.tags
             existing.times.expiry = group.times.expiry
+            existing.extras = group.extras
             existing.times.lastModification = date
         }
         guard found else { throw .groupNotFound(group.id) }

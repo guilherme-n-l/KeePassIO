@@ -41,6 +41,7 @@ public final class DatabaseSession {
     /// base for three-way merges.
     private var base: Database?
     private var fileVersion: FileVersion?
+    private var formatContext: FormatContext?
 
     /// - Parameters:
     ///   - memoryLimit: Upper bound for key derivation memory; extensions
@@ -71,6 +72,7 @@ public final class DatabaseSession {
             }
             self.key = key
             settings = opened.0.settings
+            formatContext = opened.0.context
             fileVersion = opened.1
             base = opened.0.database
             hasUnsavedChanges = false
@@ -89,6 +91,7 @@ public final class DatabaseSession {
         settings = nil
         searchIndex = nil
         fileVersion = nil
+        formatContext = nil
         lastMergeReport = nil
         hasUnsavedChanges = false
         state = .locked
@@ -106,7 +109,7 @@ public final class DatabaseSession {
         var database = Database.empty(name: name)
         database.meta.settingsChanged = clock()
         do {
-            let data = try await codec.encode(database, settings: settings, key: key)
+            let data = try await codec.encode(database, settings: settings, key: key, context: nil)
             fileVersion = try await file.write(data, expecting: nil)
         } catch {
             throw SessionError(error)
@@ -239,7 +242,7 @@ public final class DatabaseSession {
     {
         do {
             let data = try await Trace.span(.saveEncrypt) {
-                try await codec.encode(database, settings: settings, key: key)
+                try await codec.encode(database, settings: settings, key: key, context: formatContext)
             }
             let version = try await Trace.span(.saveReplace, argument: UInt64(data.count)) {
                 try await file.write(data, expecting: fileVersion)
