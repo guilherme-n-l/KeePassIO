@@ -21,6 +21,11 @@ Project skills live in `.claude/skills/` (see its README for sources and license
 - Read the part of a file you need, not the whole file, when the location is known.
 - `/caveman` switches replies to terse mode when the owner wants fewer output tokens; commit messages and docs stay in full prose regardless.
 
+## Owner's setup
+
+- Repositories are bare clones with one worktree per branch (for example `~/repos/KDBXKit` with `fix-…` worktrees inside). Give git commands that fetch into the bare repo and use `git worktree add`, not `git clone`/`checkout`.
+- Files sent with SendUserFile end up in `$HOME/Downloads`; write instructions with that path.
+
 ## Environment notes
 
 - A SessionStart hook runs `scripts/bootstrap.sh`, so git hooks are active in every Claude session.
