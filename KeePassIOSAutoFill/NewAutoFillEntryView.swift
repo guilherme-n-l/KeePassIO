@@ -113,7 +113,7 @@ struct NewAutoFillEntryView: View {
     /// The password: empty at first, hidden unless the eye is on, with the
     /// wand opening the generator.
     private var passwordRow: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 16) {
             SwiftUI.Group {
                 if isPasswordVisible {
                     TextField("Password", text: $password)
@@ -128,6 +128,7 @@ struct NewAutoFillEntryView: View {
                 isPasswordVisible.toggle()
             } label: {
                 Image(systemName: isPasswordVisible ? "eye.slash" : "eye")
+                    .frame(width: 28)
             }
             .buttonStyle(.borderless)
             .accessibilityLabel(isPasswordVisible ? "Hide Password" : "Show Password")

@@ -139,7 +139,7 @@ struct EntryDetailView: View {
     }
 
     private func protectedRow(name: String, label: LocalizedStringKey? = nil, value: String) -> some View {
-        HStack {
+        HStack(spacing: 16) {
             Button {
                 copy(value, field: name, sensitive: true)
             } label: {
@@ -162,6 +162,8 @@ struct EntryDetailView: View {
                 }
             } label: {
                 Image(systemName: revealedFields.contains(name) ? "eye.slash" : "eye")
+                    .frame(width: 28)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.borderless)
             .accessibilityLabel(revealedFields.contains(name) ? "Hide" : "Show")
