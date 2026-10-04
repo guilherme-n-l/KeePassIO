@@ -1,0 +1,17 @@
+# Xcode per-user state
+xcuserdata/
+*.xcuserstate
+DerivedData/
+
+# SwiftPM
+.build/
+.swiftpm/
+Package.resolved.bak
+
+# macOS
+.DS_Store
+
+# Profiling output
+*.trace
+*.perfetto-trace
+/profiles/
