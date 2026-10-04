@@ -22,13 +22,16 @@ for arg in "$@"; do
   esac
 done
 
+# Vendored third-party files keep their upstream formatting and are not linted.
+vendored='^\.claude/skills/[^/]+/'
+
 list_files() {
   local pattern="$1"
   if [[ "$mode" == "staged" ]]; then
     git diff --cached --name-only --diff-filter=ACMR -- "$pattern"
   else
     git ls-files -- "$pattern"
-  fi
+  fi | { grep -Ev "$vendored" || true; }
 }
 
 failed=0

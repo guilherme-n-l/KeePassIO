@@ -10,6 +10,19 @@ Follow [CONTRIBUTING.md](CONTRIBUTING.md) and [PLAN.md](PLAN.md). The rules the 
 - **Subagents are allowed** for parallel or exploratory work.
 - **Handroll only when necessary**; prefer maintained MIT/BSD/Apache/CC0 dependencies (PLAN.md section 9b). For performance-critical code, prefer Rust over C over assembly, and only when profiling justifies it (section 9c).
 
+## Skills
+
+Project skills live in `.claude/skills/` (see its README for sources and licenses): SwiftUI (`swiftui-expert-skill`, `swiftui-pro`), Swift concurrency and testing, test-driven development, systematic debugging, verification before completion, and the opt-in `caveman` terse mode. Use them when the task matches; they are vendored, so don't edit them.
+
+## Token use
+
+- Keep this file short: it loads every turn. Long guidance belongs in a skill or in `PLAN.md`/`CONTRIBUTING.md`, read on demand.
+- Delegate broad searches and large reads to subagents and keep only their conclusions.
+- Read the part of a file you need, not the whole file, when the location is known.
+- `/caveman` switches replies to terse mode when the owner wants fewer output tokens; commit messages and docs stay in full prose regardless.
+
 ## Environment notes
+
+- A SessionStart hook runs `scripts/bootstrap.sh`, so git hooks are active in every Claude session.
 
 - The cloud container is Linux without a Swift toolchain (download.swift.org is blocked by its network policy), so Swift code can't be built, formatted or linted here; the owner builds on their Mac and CI checks everything.
