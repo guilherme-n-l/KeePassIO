@@ -138,7 +138,7 @@ Rule: use a maintained MIT/BSD/Apache/CC0 dependency unless it fails a hard requ
 | Need | Use (don't handroll) | Handroll? |
 |---|---|---|
 | AES, ChaCha20, SHA, HMAC, HKDF | CryptoKit / [swift-crypto](https://github.com/apple/swift-crypto) | No |
-| Argon2 | Vendored reference C impl (CC0/Apache), or [Argon2Kit](https://github.com/dnrops/Argon2Kit)-style wrapper | No (wrapper only) |
+| Argon2 | Vendored reference C impl (CC0/Apache) first, Rust `argon2` crate if profiling demands (section 9c), or [Argon2Kit](https://github.com/dnrops/Argon2Kit)-style wrapper | No (wrapper only) |
 | Twofish / Salsa20 (legacy) | Small vetted C impl, only if needed for old DBs | Defer; skip until a user needs it |
 | gzip | zlib (system) / `Compression` framework | No |
 | KDBX 3.1/4.x parse+write, SecureBytes | **[KDBXKit](https://github.com/shadone/KDBXKit)** (BSD-2, KeePassXC-tested, streaming attachments, mlock'd secrets) as the base | Evaluate first (spike below); fork if gaps |
@@ -155,6 +155,14 @@ Rule: use a maintained MIT/BSD/Apache/CC0 dependency unless it fails a hard requ
 | **Diff/merge UI, quick-create flows, diagnostics screen** | SwiftUI | Yes (product code) |
 
 **KDBXKit spike (first task):** its stated floor is iOS 18 / Swift 6.1 (our target is 17), it is single-maintainer with very low adoption, and it has no merge or history API. The spike checks: lowering its deployment target to 17, KDBX3 write need, round-trip fidelity of unknown XML/custom data/history, extension memory use, and API access needed for merge. Outcomes: (a) depend on it as-is, (b) fork under BSD-2 with attribution and upstream patches, (c) as a last resort handroll only the reader/writer on top of CryptoKit + vendored Argon2. We'll also reconsider raising the min iOS to 18 if (a) is clearly best.
+
+## 9c. Lower-level languages (only when measured)
+- Default is Swift. Drop to a lower-level language only when a profile (section 6, budgets in section 7) shows a Swift hot path missing its budget after normal optimization, and the gain justifies the FFI and build cost.
+- **Preference order: Rust over C over assembly.** C only for an existing vetted dependency we don't rewrite (e.g. the Argon2 reference impl) or when Rust genuinely can't do it. Assembly/intrinsics: last resort, only inside an already-chosen Rust/C library, never handwritten by us.
+- Rust candidates, in order of likelihood: Argon2 (the RustCrypto `argon2` crate, replacing the vendored C), streaming XML/KDBX parse, search indexing, merge diff of very large DBs. Rejected unless profiling says otherwise: everything else.
+- Integration: Rust crate built as a static lib for `aarch64-apple-ios`, simulator and macOS (XCFramework via `cargo` + a build script or SwiftPM binary target), C ABI via `cbindgen`/UniFFI, `#![forbid(unsafe_code)]` where possible, secrets zeroized (`zeroize`), and a Swift reference implementation kept beside it as a correctness oracle plus a differential/fuzz test. Rust crates must be MIT/Apache; `cargo-deny` and `cargo-audit` in CI.
+- Each use needs a benchmark showing the win (via `kpbench` and XCTMetric baselines) recorded in the PR; if the gain is under about 20%, keep Swift.
+- Observability applies equally: Rust spans emit through the same `Trace.span` backends (signpost on Apple, USDT on Linux), so the profile stays end to end.
 
 ## 10. Immediate next steps
 1. Confirm §9 decisions.
