@@ -5,22 +5,37 @@ import KPSearch
 import KPSession
 import SwiftUI
 
-/// The contents of one group, with search over the whole database.
+/// Where a search looks: the group on screen (with its subgroups) or the
+/// whole database.
+enum SearchScope: Hashable {
+    case group
+    case database
+}
+
+/// The contents of one group, with search, drag-and-drop moves and
+/// long-press actions.
 struct GroupView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.openURL) private var openURL
     let session: DatabaseSession
+    let databaseID: UUID
     let groupID: UUID
     var isRoot = false
 
     @State private var query = ""
+    @State private var scope = SearchScope.group
     @State private var editingEntry: Entry?
     @State private var editingExistingEntry: Entry?
+    @State private var moving: DraggedItem?
     @State private var isDownloadingIcons = false
     @State private var isAddingGroup = false
     @State private var newGroupName = ""
     @State private var saveError: String?
     @State private var copyCount = 0
+    @State private var moveCount = 0
+    /// Entries waiting for a name for the group they'll be put in.
+    @State private var grouping: [UUID]?
+    @State private var groupingName = ""
 
     private var group: KPModel.Group? { session.database?.group(withID: groupID) }
 
@@ -29,18 +44,32 @@ struct GroupView: View {
             if !query.isEmpty {
                 searchResults
             } else if let group {
+                if !isRoot {
+                    Section {
+                        Breadcrumbs(session: session, groupID: groupID) { items, target in
+                            move(items, into: target)
+                        }
+                    }
+                }
                 if !group.groups.isEmpty {
                     Section("Groups") {
                         ForEach(group.groups) { child in
-                            NavigationLink {
-                                GroupView(session: session, groupID: child.id)
-                            } label: {
+                            NavigationLink(value: DatabaseRoute.group(database: databaseID, group: child.id)) {
                                 Label {
                                     Text(child.name)
                                 } icon: {
                                     ItemIcon(group: child, in: session.database)
                                 }
                             }
+                            .draggable(DraggedItem(kind: .group, id: child.id)) {
+                                Label(child.name, systemImage: "folder")
+                                    .padding(8)
+                                    .background(.regularMaterial, in: Capsule())
+                            }
+                            .dropDestination(for: DraggedItem.self) { items, _ in
+                                move(items, into: child.id)
+                            }
+                            .contextMenu { groupActions(for: child) }
                             .accessibilityIdentifier("group.\(child.name)")
                         }
                         .onDelete { offsets in
@@ -56,11 +85,15 @@ struct GroupView: View {
                             .foregroundStyle(.secondary)
                     }
                     ForEach(group.entries) { entry in
-                        NavigationLink {
-                            EntryDetailView(session: session, entryID: entry.id)
-                        } label: {
+                        NavigationLink(value: DatabaseRoute.entry(database: databaseID, entry: entry.id)) {
                             EntryRow(entry: entry, database: session.database)
                         }
+                        .draggable(DraggedItem(kind: .entry, id: entry.id)) {
+                            Label(entry.title, systemImage: "key")
+                                .padding(8)
+                                .background(.regularMaterial, in: Capsule())
+                        }
+                        .modifier(GroupingDropTarget { items in proposeGroup(of: items, with: entry) })
                         .contextMenu { quickActions(for: entry) }
                         .accessibilityIdentifier("entry.\(entry.title)")
                     }
@@ -73,8 +106,11 @@ struct GroupView: View {
             }
         }
         .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search")
+        .modifier(SearchScopeBar(isShown: !isRoot, scope: $scope))
         .navigationTitle(group?.name ?? "")
         .toolbar { toolbar }
+        .sensoryFeedback(.success, trigger: copyCount)
+        .sensoryFeedback(.impact, trigger: moveCount)
         .sheet(item: $editingEntry) { entry in
             NavigationStack {
                 EntryEditorView(session: session, entry: entry, isNew: true, groupID: groupID)
@@ -85,7 +121,21 @@ struct GroupView: View {
                 EntryEditorView(session: session, entry: entry, isNew: false, groupID: nil)
             }
         }
-        .sensoryFeedback(.success, trigger: copyCount)
+        .sheet(item: $moving) { item in
+            NavigationStack {
+                MoveToView(session: session, item: item)
+            }
+        }
+        .alert(
+            "New Group",
+            isPresented: Binding(get: { grouping != nil }, set: { if !$0 { grouping = nil } })
+        ) {
+            TextField("Name", text: $groupingName)
+            Button("Cancel", role: .cancel) {}
+            Button("Create") { createGroup() }
+        } message: {
+            Text("The entries are moved into the new group.")
+        }
         .alert("New Group", isPresented: $isAddingGroup) {
             TextField("Name", text: $newGroupName)
                 .accessibilityIdentifier("newGroup.name")
@@ -128,14 +178,13 @@ struct GroupView: View {
     }
 
     @ViewBuilder private var searchResults: some View {
-        let hits = session.searchIndex?.search(query, limit: 200) ?? []
+        let searchedGroup = isRoot || scope == .database ? nil : groupID
+        let hits = session.searchIndex?.search(query, in: searchedGroup, limit: 200) ?? []
         if hits.isEmpty {
             ContentUnavailableView.search(text: query)
         }
         ForEach(hits) { hit in
-            NavigationLink {
-                EntryDetailView(session: session, entryID: hit.entryID)
-            } label: {
+            NavigationLink(value: DatabaseRoute.entry(database: databaseID, entry: hit.entryID)) {
                 if let entry = session.database?.entry(withID: hit.entryID) {
                     EntryRow(entry: entry, database: session.database, groupName: hit.groupName)
                 }
@@ -208,6 +257,54 @@ struct GroupView: View {
 }
 
 extension GroupView {
+    /// Asks for a name for a new group holding `entry` and the dragged
+    /// entries. Groups dropped on an entry are ignored.
+    private func proposeGroup(of items: [DraggedItem], with entry: Entry) -> Bool {
+        let dragged = items.filter { $0.kind == .entry && $0.id != entry.id }.map(\.id)
+        guard !dragged.isEmpty else { return false }
+        groupingName = String(localized: "New Group")
+        grouping = [entry.id] + dragged
+        return true
+    }
+
+    private func createGroup() {
+        guard let entries = grouping else { return }
+        let name = groupingName.trimmingCharacters(in: .whitespaces)
+        let newGroup = KPModel.Group(name: name.isEmpty ? String(localized: "New Group") : name)
+        do {
+            try session.addGroup(newGroup, to: groupID)
+            for id in entries {
+                try session.moveEntry(id, to: newGroup.id)
+            }
+            moveCount += 1
+        } catch {
+            saveError = error.userMessage
+        }
+        grouping = nil
+    }
+
+    /// Moves dragged entries and groups into `target`. Groups can't go
+    /// into themselves; those drops are ignored.
+    private func move(_ items: [DraggedItem], into target: UUID) -> Bool {
+        var moved = false
+        for item in items {
+            switch item.kind {
+            case .entry:
+                guard session.database?.location(ofEntry: item.id)?.parentID != target else { continue }
+                moved = (try? session.moveEntry(item.id, to: target)) != nil || moved
+            case .group:
+                guard item.id != target, session.database?.location(ofGroup: item.id)?.parentID != target else {
+                    continue
+                }
+                moved = (try? session.moveGroup(item.id, to: target)) != nil || moved
+            }
+        }
+        if moved {
+            moveCount += 1
+        }
+        return moved
+    }
+
     /// The long-press menu of an entry.
     @ViewBuilder
     func quickActions(for entry: Entry) -> some View {
@@ -228,6 +325,7 @@ extension GroupView {
         }
         Divider()
         Button("Edit", systemImage: "pencil") { editingExistingEntry = entry }
+        Button("Move To…", systemImage: "folder") { moving = DraggedItem(kind: .entry, id: entry.id) }
         if model.settings.mayDownloadFavicons, !entry.url.isEmpty {
             Button("Download Icon", systemImage: "photo.badge.arrow.down") {
                 Task { await model.downloadIcons(for: [entry.id], in: session) }
@@ -235,6 +333,15 @@ extension GroupView {
         }
         Button("Delete", systemImage: "trash", role: .destructive) {
             try? session.deleteEntry(entry.id)
+        }
+    }
+
+    /// The long-press menu of a group.
+    @ViewBuilder
+    func groupActions(for group: KPModel.Group) -> some View {
+        Button("Move To…", systemImage: "folder") { moving = DraggedItem(kind: .group, id: group.id) }
+        Button("Delete", systemImage: "trash", role: .destructive) {
+            try? session.deleteGroup(group.id)
         }
     }
 
@@ -249,39 +356,6 @@ extension GroupView {
         Task {
             await model.downloadIcons(for: ids, in: session)
             isDownloadingIcons = false
-        }
-    }
-}
-
-struct EntryRow: View {
-    let entry: Entry
-    let database: Database?
-    var groupName: String?
-
-    private var title: String { entry.title }
-    private var userName: String { entry.userName }
-
-    var body: some View {
-        HStack(spacing: 12) {
-            ItemIcon(entry: entry, in: database)
-            details
-        }
-    }
-
-    private var details: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(title.isEmpty ? String(localized: "Untitled") : title)
-                .font(.body)
-            HStack(spacing: 4) {
-                if !userName.isEmpty {
-                    Text(userName)
-                }
-                if let groupName {
-                    Text("· \(groupName)")
-                }
-            }
-            .font(.caption)
-            .foregroundStyle(.secondary)
         }
     }
 }

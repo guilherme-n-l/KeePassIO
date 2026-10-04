@@ -33,13 +33,71 @@ struct SearchIndexTests {
         return database
     }
 
-    @Test func prefixMatchingAcrossFields() throws {
+    @Test func substringMatchingAcrossFields() throws {
         let index = SearchIndex(try Self.database())
         #expect(index.search("gma").map(\.title) == ["Gmail"])
         #expect(index.search("alice").count == 2)
         #expect(index.search("alice gma").map(\.title) == ["Gmail"])
         #expect(index.search("checking").map(\.title) == ["Banco Café"])
         #expect(index.search("work").map(\.title) == ["Banco Café"])
+        // Anywhere in a word, as in KeePassXC.
+        #expect(index.search("mail").map(\.title) == ["Gmail"])
+        #expect(index.search("anco").map(\.title) == ["Banco Café"])
+    }
+
+    @Test func pathQueriesMatchGroupsAndTitleInOrder() throws {
+        var database = Database.empty(name: "Test")
+        let personal = Group(name: "Personal")
+        let gmail = Group(name: "gmail")
+        try database.add(personal, to: database.root.id)
+        try database.add(gmail, to: personal.id)
+        var account = Entry()
+        account.title = "acc"
+        try database.add(account, to: gmail.id)
+        var other = Entry()
+        other.title = "account"
+        try database.add(other, to: personal.id)
+        let index = SearchIndex(database)
+
+        #expect(index.search("mail/acc").map(\.title) == ["acc"])
+        #expect(index.search("personal/acc").count == 2)
+        #expect(index.search("acc/mail").isEmpty)
+        #expect(index.search("g:pers/gma").map(\.title) == ["acc"])
+        #expect(index.search("group:gmail").map(\.title) == ["acc"])
+    }
+
+    @Test func keePassXCModifiers() throws {
+        let index = SearchIndex(try Self.database())
+        #expect(index.search("alice -gmail").map(\.title) == ["Banco Café"])
+        #expect(index.search("alice !gmail").map(\.title) == ["Banco Café"])
+        #expect(index.search("+u:alice").map(\.title) == ["Banco Café"])
+        #expect(index.search("u:alice").count == 2)
+        #expect(index.search("t:g*l").map(\.title) == ["Gmail"])
+        #expect(index.search("t:b?nco").map(\.title) == ["Banco Café"])
+        #expect(index.search("*^gm").map(\.title) == ["Gmail"])
+        #expect(index.search(#""banco café""#).map(\.title) == ["Banco Café"])
+        #expect(index.search(#"title:"banco caf""#).map(\.title) == ["Banco Café"])
+        #expect(index.search("https://mail.google").map(\.title) == ["Gmail"])
+        #expect(index.search("attr:checking").map(\.title) == ["Banco Café"])
+    }
+
+    @Test func searchCanBeLimitedToAGroup() throws {
+        let database = try Self.database()
+        let work = try #require(database.root.groups.first { $0.name == "Work" })
+        let index = SearchIndex(database)
+        #expect(index.search("alice").count == 2)
+        #expect(index.search("alice", in: work.id).map(\.title) == ["Banco Café"])
+        #expect(index.search("", in: work.id).map(\.title) == ["Banco Café"])
+        #expect(index.search("alice", in: database.root.id).count == 2)
+    }
+
+    @Test func expiredEntriesCanBeFound() throws {
+        var database = try Self.database()
+        var old = Entry(times: Times(expiry: Date(timeIntervalSince1970: 50)))
+        old.title = "Old VPN"
+        try database.add(old, to: database.root.id)
+        let index = SearchIndex(database)
+        #expect(index.search("is:expired", at: Date(timeIntervalSince1970: 1000)).map(\.title) == ["Old VPN"])
     }
 
     @Test func caseAndDiacriticInsensitive() throws {

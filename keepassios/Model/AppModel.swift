@@ -23,6 +23,9 @@ final class AppModel {
     /// waits for the user instead of asking for Face ID straight away,
     /// until the user leaves it.
     var lockedByUser: Set<UUID> = []
+    /// Bumped whenever databases are locked, so the library can close
+    /// the screens that showed their contents.
+    private(set) var lockCount = 0
 
     private let store: AppStateStore
     let codec: any DatabaseCodec
@@ -150,6 +153,7 @@ final class AppModel {
             lockedByUser.insert(id)
         }
         session.lock()
+        lockCount += 1
     }
 
     func rename(_ id: UUID, to alias: String) async {
@@ -197,6 +201,7 @@ final class AppModel {
         for session in sessions.values {
             session.lock()
         }
+        lockCount += 1
     }
 
     // MARK: Settings

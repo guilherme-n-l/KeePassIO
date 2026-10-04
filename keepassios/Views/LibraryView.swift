@@ -1,5 +1,6 @@
 import KPAppState
 import KPPlatform
+import KPSession
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -57,6 +58,16 @@ struct LibraryView: View {
             .navigationDestination(for: UUID.self) { id in
                 if let reference = model.databases.first(where: { $0.id == id }) {
                     DatabaseContainerView(reference: reference)
+                }
+            }
+            .navigationDestination(for: DatabaseRoute.self) { route in
+                destination(for: route)
+            }
+            .onChange(of: model.lockCount) {
+                // Screens inside a database can't show anything once it's
+                // locked: go back to its unlock screen.
+                if path.count > 1 {
+                    path.removeLast(path.count - 1)
                 }
             }
             .toolbar {
@@ -143,6 +154,30 @@ struct LibraryView: View {
 }
 
 extension LibraryView {
+    @ViewBuilder
+    private func destination(for route: DatabaseRoute) -> some View {
+        switch route {
+        case .group(let databaseID, let groupID):
+            if let session = unlockedSession(databaseID) {
+                GroupView(session: session, databaseID: databaseID, groupID: groupID)
+            }
+        case .entry(let databaseID, let entryID):
+            if let session = unlockedSession(databaseID) {
+                EntryDetailView(session: session, databaseID: databaseID, entryID: entryID)
+            }
+        case .history(let databaseID, let entryID):
+            if let session = unlockedSession(databaseID) {
+                EntryHistoryView(session: session, entryID: entryID)
+            }
+        }
+    }
+
+    private func unlockedSession(_ databaseID: UUID) -> DatabaseSession? {
+        guard let reference = model.databases.first(where: { $0.id == databaseID }) else { return nil }
+        let session = model.session(for: reference)
+        return session.state == .unlocked ? session : nil
+    }
+
     /// The long-press menu of a database.
     @ViewBuilder
     private func quickActions(for reference: DatabaseReference) -> some View {

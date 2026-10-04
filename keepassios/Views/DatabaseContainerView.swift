@@ -12,7 +12,7 @@ struct DatabaseContainerView: View {
         let session = model.session(for: reference)
         SwiftUI.Group {
             if session.state == .unlocked, let database = session.database {
-                GroupView(session: session, groupID: database.root.id, isRoot: true)
+                GroupView(session: session, databaseID: reference.id, groupID: database.root.id, isRoot: true)
             } else {
                 UnlockView(session: session, reference: reference)
             }

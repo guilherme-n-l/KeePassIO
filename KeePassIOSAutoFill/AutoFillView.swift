@@ -3,6 +3,7 @@ import KPModel
 import KPPlatform
 import KPSession
 import SwiftUI
+import UniformTypeIdentifiers
 
 /// The AutoFill sheet: unlock a database, then pick an entry.
 struct AutoFillView: View {

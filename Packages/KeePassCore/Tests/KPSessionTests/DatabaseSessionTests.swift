@@ -60,6 +60,26 @@ struct DatabaseSessionTests {
         #expect(session.hasUnsavedChanges)
     }
 
+    @Test func groupsAndEntriesMoveButNotIntoThemselves() async throws {
+        let session = makeSession()
+        try await session.create(name: "Personal", key: key)
+        let rootID = try #require(session.database?.root.id)
+        let outer = Group(name: "Outer")
+        let inner = Group(name: "Inner")
+        try session.addGroup(outer)
+        try session.addGroup(inner, to: outer.id)
+        let entry = session.newEntry(title: "Mail")
+        try session.addEntry(entry, to: inner.id)
+
+        try session.moveEntry(entry.id, to: rootID)
+        #expect(session.database?.location(ofEntry: entry.id)?.parentID == rootID)
+        try session.moveGroup(inner.id, to: rootID)
+        #expect(session.database?.location(ofGroup: inner.id)?.parentID == rootID)
+        try session.moveGroup(inner.id, to: outer.id)
+        #expect(throws: SessionError.self) { try session.moveGroup(outer.id, to: inner.id) }
+        #expect(session.database?.location(ofGroup: outer.id)?.parentID == rootID)
+    }
+
     @Test func wrongKeyFails() async throws {
         try await makeSession().create(name: "Personal", key: key)
         let session = makeSession()

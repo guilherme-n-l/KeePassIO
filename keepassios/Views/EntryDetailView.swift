@@ -10,6 +10,7 @@ struct EntryDetailView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.openURL) private var openURL
     let session: DatabaseSession
+    let databaseID: UUID
     let entryID: UUID
     @State private var isEditing = false
     @State private var revealedFields: Set<String> = []
@@ -75,9 +76,10 @@ struct EntryDetailView: View {
                         }
                     }
                     if !entry.history.isEmpty {
-                        NavigationLink("History (\(entry.history.count))") {
-                            HistoryView(entry: entry)
-                        }
+                        NavigationLink(
+                            "History (\(entry.history.count))",
+                            value: DatabaseRoute.history(database: databaseID, entry: entry.id)
+                        )
                     }
                 }
             }
@@ -207,11 +209,17 @@ private struct OTPRow: View {
     }
 }
 
-private struct HistoryView: View {
-    let entry: Entry
+/// Earlier versions of an entry.
+struct EntryHistoryView: View {
+    let session: DatabaseSession
+    let entryID: UUID
+
+    private var versions: [Entry] {
+        session.database?.entry(withID: entryID).map { Array($0.history.reversed()) } ?? []
+    }
 
     var body: some View {
-        List(entry.history.reversed(), id: \.times.lastModification) { version in
+        List(versions, id: \.times.lastModification) { version in
             VStack(alignment: .leading) {
                 Text(version.title)
                 Text(version.times.lastModification, format: .dateTime)

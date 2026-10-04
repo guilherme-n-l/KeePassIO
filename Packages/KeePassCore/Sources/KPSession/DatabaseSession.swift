@@ -146,6 +146,13 @@ public final class DatabaseSession {
         try edit { database in try database.moveEntry(id, to: groupID, at: now) }
     }
 
+    /// Moves a group (with everything in it) under another group. Moving
+    /// a group into itself or its own subgroups is refused.
+    public func moveGroup(_ id: UUID, to parentID: UUID) throws(SessionError) {
+        let now = clock()
+        try edit { database in try database.moveGroup(id, to: parentID, at: now) }
+    }
+
     public func addGroup(_ group: Group, to parentID: UUID? = nil) throws(SessionError) {
         try edit { database in try database.add(group, to: parentID ?? database.root.id) }
     }
