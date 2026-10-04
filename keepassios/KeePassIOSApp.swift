@@ -40,9 +40,13 @@ struct KeePassIOSApp: App {
                     model.lockAll()
                 }
             case .active:
-                if let inactiveSince,
-                    Date().timeIntervalSince(inactiveSince) >= TimeInterval(model.settings.autoLockSeconds)
-                {
+                // Immediately already locked when the app went inactive.
+                // Checking again here would lock a database unlocked while
+                // inactive, which is exactly what Face ID does: its prompt
+                // makes the app inactive, so it would unlock and re-lock in
+                // a loop.
+                let timeout = model.settings.autoLockSeconds
+                if timeout > 0, let inactiveSince, Date().timeIntervalSince(inactiveSince) >= TimeInterval(timeout) {
                     model.lockAll()
                 }
                 inactiveSince = nil
