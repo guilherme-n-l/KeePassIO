@@ -14,6 +14,7 @@ struct LibraryView: View {
     @State private var renaming: DatabaseReference?
     @State private var aliasText = ""
     @State private var removing: DatabaseReference?
+    @State private var sharing: SharedFile?
 
     var body: some View {
         NavigationStack(path: $path) {
@@ -123,6 +124,14 @@ struct LibraryView: View {
             .sheet(isPresented: $isShowingSettings) {
                 SettingsView()
             }
+            .sheet(item: $sharing) { file in
+                ShareSheet(items: [file.url])
+                    .presentationDetents([.medium, .large])
+                    .onDisappear {
+                        // The copy was only for sharing.
+                        try? FileManager.default.removeItem(at: file.url.deletingLastPathComponent())
+                    }
+            }
             .alert(
                 "Rename",
                 isPresented: Binding(get: { renaming != nil }, set: { if !$0 { renaming = nil } }),
@@ -222,6 +231,13 @@ extension LibraryView {
             path = NavigationPath()
             path.append(reference.id)
             model.quickCreateRequested = true
+        }
+        Button("Share Database…", systemImage: "square.and.arrow.up") {
+            Task {
+                if let url = await model.shareableCopy(of: reference) {
+                    sharing = SharedFile(url: url)
+                }
+            }
         }
         Button("Rename", systemImage: "pencil") {
             aliasText = reference.alias ?? ""

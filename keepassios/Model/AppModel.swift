@@ -33,9 +33,13 @@ final class AppModel {
     /// Encryption for new databases. UI tests use a cheap key derivation
     /// so they run quickly on simulators.
     let newDatabaseSettings: EncryptionSettings
+    /// New databases are saved where the user picks in Files; UI tests,
+    /// which can't drive the document picker, keep them in the app.
+    let picksLocationForNewDatabases: Bool
 
     init(launchArguments: [String] = ProcessInfo.processInfo.arguments) {
         let isUITest = launchArguments.contains("-UITest")
+        picksLocationForNewDatabases = !isUITest
         let fallbackURL = URL.applicationSupportDirectory.appendingPathComponent("AppState.json")
         store = (isUITest ? nil : AppStateStore.shared()) ?? AppStateStore(fileURL: fallbackURL)
         codec = KDBXCodec()
@@ -81,8 +85,34 @@ final class AppModel {
         }
     }
 
+    /// A new database written to a temporary file, waiting for the user to
+    /// choose where in Files it goes.
+    struct PendingDatabase: Identifiable {
+        let url: URL
+        let key: CompositeKey
+        var id: URL { url }
+    }
+
+    /// Adds a new database at the place the user moved it to, unlocked.
+    func adopt(_ pending: PendingDatabase, movedTo url: URL) async -> UUID? {
+        discard(pending)
+        do {
+            let reference = DatabaseReference(
+                displayName: url.deletingPathExtension().lastPathComponent,
+                bookmark: try BookmarkedFile.makeBookmark(for: url),
+                lastOpened: Date()
+            )
+            state = try await store.update { $0.databases.append(reference) }
+            await self.session(for: reference).unlock(with: pending.key)
+            return reference.id
+        } catch {
+            errorMessage = String(localized: "Couldn't add the database: \(error.localizedDescription)")
+            return nil
+        }
+    }
+
     /// Creates a new database in the app's Documents folder, which the
-    /// Files app shows under "On My iPhone".
+    /// Files app shows under "On My iPhone". Used by UI tests.
     func createDatabase(name: String, password: String) async -> UUID? {
         let fileName = name.trimmingCharacters(in: .whitespaces).isEmpty ? "Passwords" : name
         let url = Self.documentsDirectory.appendingPathComponent(fileName).appendingPathExtension("kdbx")
@@ -138,23 +168,6 @@ final class AppModel {
     private static func cached(_ file: any DatabaseFile, id: UUID) -> any DatabaseFile {
         guard let cache = SharedFiles.databaseCache(for: id) else { return file }
         return CachedDatabaseFile(original: file, cache: cache, fallsBackToCache: false)
-    }
-
-    /// Brings in entries AutoFill saved while it couldn't reach the
-    /// database file, then deletes its copy once they're saved here.
-    func mergePendingChanges(for id: UUID, into session: DatabaseSession) async {
-        guard let pending = SharedFiles.pendingChanges(for: id),
-            FileManager.default.fileExists(atPath: pending.url.path)
-        else { return }
-        do {
-            try await session.mergeChanges(from: pending)
-            await save(session)
-            if !session.hasUnsavedChanges {
-                try? FileManager.default.removeItem(at: pending.url)
-            }
-        } catch {
-            errorMessage = String(localized: "Changes made in AutoFill couldn't be merged: \(error.userMessage)")
-        }
     }
 
     /// Remembers (or, with nil, forgets) which key file a database uses.
@@ -219,24 +232,6 @@ final class AppModel {
         sessions[id]?.state == .unlocked
     }
 
-    /// Downloads website icons for the given entries that have a URL and
-    /// no custom icon yet. Returns how many icons were set.
-    @discardableResult
-    func downloadIcons(for entryIDs: [UUID], in session: DatabaseSession) async -> Int {
-        guard settings.mayDownloadFavicons else { return 0 }
-        var count = 0
-        for id in entryIDs {
-            guard let entry = session.database?.entry(withID: id), !entry.url.isEmpty else { continue }
-            guard let png = await WebsiteIcon.fetch(for: entry.url) else { continue }
-            if (try? session.setCustomIcon(png, forEntry: id)) != nil {
-                count += 1
-            }
-        }
-        return count
-    }
-
-    /// Locks every open database (saving changes first). Does nothing,
-    /// and leaves navigation alone, when none is open.
     func lockAll() {
         let open = sessions.values.filter { $0.state == .unlocked }
         guard !open.isEmpty else { return }
