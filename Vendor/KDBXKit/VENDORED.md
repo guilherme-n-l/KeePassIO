@@ -16,6 +16,7 @@ Each patch is its own commit in this repository, touching only this directory; `
 |---|---|
 | Test hygiene: find `keepassxc-cli` via `KEEPASSXC_CLI`/`PATH`; avoid a Swift 6.3 compiler crash in `StaticReaderAPITests`; discard two unused results | Interop tests only ran with the macOS app bundle; tests didn't compile with Swift 6.3.3; warnings |
 | Epoch fix: the .NET epoch is the constant `-62_135_596_800` instead of a Foundation `DateComponents` date | Foundation's Gregorian calendar is Julian before 1582, so every KDBX 4 timestamp read or written was 2 days off from KeePass/KeePassXC |
+| Public `KDBX.CustomDataItem.init(key:value:)` | Group and entry custom data couldn't be created outside the library |
 
 ## Updating
 

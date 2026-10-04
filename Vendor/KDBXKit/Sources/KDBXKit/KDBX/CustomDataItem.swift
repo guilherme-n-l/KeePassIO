@@ -27,5 +27,10 @@ public extension KDBX {
         /// Item value. Plain `String` — no protected-in-memory
         /// treatment. Don't put secrets here.
         public var value: String
+
+        public init(key: String, value: String) {
+            self.key = key
+            self.value = value
+        }
     }
 }
