@@ -1,0 +1,47 @@
+name: Linux
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  core:
+    name: Lint, test and profile core packages
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install Swift, swift-format, SwiftLint, ShellCheck and bpftrace
+        run: sudo scripts/setup-linux-toolchain.sh
+
+      - name: Lint
+        run: scripts/lint.sh
+
+      - name: Build
+        run: swift build --package-path Packages/KeePassCore -c release
+
+      - name: Test
+        run: swift test --package-path Packages/KeePassCore
+
+      - name: Check eBPF probes fire
+        run: |
+          mkdir -p profiles
+          sudo Tools/bpf/run.sh spans.bt Packages/KeePassCore/.build/release/kpbench \
+            probe-check --iterations 30 --trace profiles/probe-check.json | tee profiles/spans.txt
+          grep -q '^@span_count\[kdf.argon2\]: 30$' profiles/spans.txt
+
+      - name: Upload profiles
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: linux-profiles
+          path: profiles/
+          if-no-files-found: ignore
