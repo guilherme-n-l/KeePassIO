@@ -15,6 +15,11 @@ public enum Trace {
     private static let backends = Mutex<[any TraceBackend]>(defaultBackends())
     private static let nextID = Atomic<UInt64>(1)
 
+    /// Backends for the current task only, replacing the global ones.
+    /// Tests use it to record their own spans without seeing spans from
+    /// code running concurrently elsewhere in the process.
+    @TaskLocal public static var taskBackends: [any TraceBackend]?
+
     /// Replaces the installed backends. Call it once at startup, before
     /// any span runs; an empty list disables tracing.
     public static func bootstrap(_ newBackends: [any TraceBackend]) {
@@ -61,7 +66,7 @@ public enum Trace {
     }
 
     private static func begin(_ span: SpanName, argument: UInt64) -> (UInt64, [any TraceBackend]) {
-        let active = backends.withLock { $0 }
+        let active = taskBackends ?? backends.withLock { $0 }
         let id = nextID.wrappingAdd(1, ordering: .relaxed).oldValue
         for backend in active {
             backend.begin(span, id: id, argument: argument)

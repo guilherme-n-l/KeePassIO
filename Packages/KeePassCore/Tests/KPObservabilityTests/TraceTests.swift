@@ -3,15 +3,14 @@ import Testing
 
 @testable import KPObservability
 
-// Trace's backends are process-wide, so tests that install them run serially.
-@Suite(.serialized)
+// Backends are installed per task (Trace.$taskBackends), so spans from
+// other suites running in parallel never reach these recorders.
 struct TraceTests {
-    @Test func spanReturnsTheBodysResultAndIsRecorded() throws {
+    @Test func spanReturnsTheBodysResultAndIsRecorded() {
         let recorder = RecordingBackend()
-        Trace.bootstrap([recorder])
-        defer { Trace.bootstrap(Trace.defaultBackends()) }
-
-        let value = Trace.span(.kdbxDecrypt, argument: 42) { 7 }
+        let value = Trace.$taskBackends.withValue([recorder]) {
+            Trace.span(.kdbxDecrypt, argument: 42) { 7 }
+        }
 
         #expect(value == 7)
         let spans = recorder.spans
@@ -22,12 +21,11 @@ struct TraceTests {
 
     @Test func nestedSpansFinishInsideOut() {
         let recorder = RecordingBackend()
-        Trace.bootstrap([recorder])
-        defer { Trace.bootstrap(Trace.defaultBackends()) }
-
-        Trace.span(.unlockTotal) {
-            Trace.span(.kdfArgon2) {}
-            Trace.span(.kdbxDecrypt) {}
+        Trace.$taskBackends.withValue([recorder]) {
+            Trace.span(.unlockTotal) {
+                Trace.span(.kdfArgon2) {}
+                Trace.span(.kdbxDecrypt) {}
+            }
         }
 
         #expect(recorder.spans.map(\.span) == [.kdfArgon2, .kdbxDecrypt, .unlockTotal])
@@ -41,23 +39,21 @@ struct TraceTests {
     @Test func spanEndsWhenTheBodyThrows() {
         struct Failure: Error {}
         let recorder = RecordingBackend()
-        Trace.bootstrap([recorder])
-        defer { Trace.bootstrap(Trace.defaultBackends()) }
-
-        #expect(throws: Failure.self) {
-            try Trace.span(.saveFsync) { throw Failure() }
+        Trace.$taskBackends.withValue([recorder]) {
+            #expect(throws: Failure.self) {
+                try Trace.span(.saveFsync) { throw Failure() }
+            }
         }
         #expect(recorder.spans.map(\.span) == [.saveFsync])
     }
 
     @Test func asyncSpanIsRecorded() async {
         let recorder = RecordingBackend()
-        Trace.bootstrap([recorder])
-        defer { Trace.bootstrap(Trace.defaultBackends()) }
-
-        let value = await Trace.span(.mergePlan) {
-            await Task.yield()
-            return "done"
+        let value = await Trace.$taskBackends.withValue([recorder]) {
+            await Trace.span(.mergePlan) {
+                await Task.yield()
+                return "done"
+            }
         }
 
         #expect(value == "done")
@@ -65,10 +61,10 @@ struct TraceTests {
     }
 
     @Test func emptyBackendListDisablesTracing() {
-        Trace.bootstrap([])
-        defer { Trace.bootstrap(Trace.defaultBackends()) }
-
-        #expect(Trace.span(.searchQuery) { 1 } == 1)
+        let value = Trace.$taskBackends.withValue([]) {
+            Trace.span(.searchQuery) { 1 }
+        }
+        #expect(value == 1)
     }
 }
 
@@ -135,17 +131,15 @@ struct ChromeTraceTests {
     }
 }
 
-@Suite(.serialized)
 struct HistogramBackendTests {
     @Test func aggregatesPerSpanAndExports() throws {
         let backend = HistogramBackend()
-        Trace.bootstrap([backend])
-        defer { Trace.bootstrap(Trace.defaultBackends()) }
-
-        for _ in 0..<5 {
-            Trace.span(.searchQuery) {}
+        Trace.$taskBackends.withValue([backend]) {
+            for _ in 0..<5 {
+                Trace.span(.searchQuery) {}
+            }
+            Trace.span(.saveFsync) {}
         }
-        Trace.span(.saveFsync) {}
 
         let histograms = backend.histograms
         #expect(histograms[.searchQuery]?.count == 5)
