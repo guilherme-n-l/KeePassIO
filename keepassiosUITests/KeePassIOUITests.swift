@@ -146,11 +146,16 @@ final class KeePassIOUITests: XCTestCase {
         let rename = app.buttons["library.rename"]
         XCTAssertTrue(rename.waitForExistence(timeout: 5), "The database's long-press menu didn't appear")
         rename.tap()
-        let field = app.textFields["library.rename.field"]
-        XCTAssertTrue(field.waitForExistence(timeout: 5), "The rename alert didn't appear")
+        // Alerts are drawn by UIKit, which doesn't always carry SwiftUI's
+        // accessibility identifiers over, so the field and button are
+        // found through the alert.
+        let alert = app.alerts["Rename"]
+        XCTAssertTrue(alert.waitForExistence(timeout: 10), "The rename alert didn't appear")
+        let field = alert.textFields.firstMatch
+        XCTAssertTrue(field.waitForExistence(timeout: 5), "The rename alert has no text field")
         field.tap()
         field.typeText("Default")
-        app.buttons["library.rename.confirm"].tap()
+        alert.buttons["Rename"].tap()
         XCTAssertTrue(
             app.buttons["library.database.Default"].waitForExistence(timeout: 5),
             "The alias didn't replace the file name in the library"
