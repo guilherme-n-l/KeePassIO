@@ -1,93 +1,33 @@
 import KPModel
 import KPOTP
+import Observation
 import PhotosUI
 import SwiftUI
 import UIKit
 
-/// The entry editor's one-time code section: shows the current code, and
-/// sets one up from a QR code (camera or image), a pasted otpauth:// link
-/// or a secret typed in by hand.
+/// One-time code setup for the entry editor: the state and actions shared
+/// by the section (inside the editor's Form) and the camera and setup-key
+/// screens (presented from the editor itself).
+///
+/// The screens can't be presented from the section: a sheet attached to a
+/// view inside a Form is dismissed as soon as the Form re-evaluates that
+/// row, which opening the camera does, so the camera closed right away.
 ///
 /// The code is stored as KeePassXC does, an otpauth:// URI in a protected
 /// "otp" field, so KeePassXC and other KeePass apps read it too.
-struct OTPSetupSection: View {
-    @Binding var entry: Entry
-    @State private var isScanning = false
-    @State private var isEnteringManually = false
-    @State private var photo: PhotosPickerItem?
-    @State private var message: String?
+@MainActor
+@Observable
+final class OTPSetup {
+    var isScanning = false
+    var isEnteringManually = false
+    var message: String?
 
-    private var otp: OTP? {
+    static func otp(of entry: Entry) -> OTP? {
         try? OTP(fields: entry.fields.mapValues { $0.reveal() })
     }
 
-    var body: some View {
-        Section {
-            if let otp {
-                TimelineView(.periodic(from: .now, by: 1)) { context in
-                    LabeledContent("Current Code") {
-                        Text(otp.code(at: context.date))
-                            .font(.body.monospaced())
-                    }
-                }
-                Button("Remove One-Time Code", role: .destructive) {
-                    setURI(nil)
-                }
-            } else {
-                if QRCodeReader.canScanWithCamera {
-                    Button("Scan QR Code", systemImage: "qrcode.viewfinder") { isScanning = true }
-                        .accessibilityIdentifier("editor.otp.scan")
-                }
-                PhotosPicker(selection: $photo, matching: .images) {
-                    Label("Choose QR Code Image", systemImage: "photo")
-                }
-                Button("Paste Setup Link", systemImage: "doc.on.clipboard") { pasteLink() }
-                Button("Enter Secret Manually", systemImage: "keyboard") { isEnteringManually = true }
-                    .accessibilityIdentifier("editor.otp.manual")
-            }
-        } header: {
-            Text("One-Time Code")
-        } footer: {
-            if let message {
-                Text(message).foregroundStyle(.red)
-            } else if otp == nil {
-                Text(
-                    "For sites with two-factor authentication: scan or choose the QR code they show, or type the setup key."
-                )
-            }
-        }
-        .sheet(isPresented: $isScanning) {
-            NavigationStack {
-                QRCodeScannerView { payload in
-                    isScanning = false
-                    use(payload)
-                }
-                .ignoresSafeArea()
-                .navigationTitle("Scan QR Code")
-                .navigationBarTitleDisplayMode(.inline)
-                .toolbar {
-                    ToolbarItem(placement: .cancellationAction) {
-                        Button("Cancel") { isScanning = false }
-                    }
-                }
-            }
-        }
-        .sheet(isPresented: $isEnteringManually) {
-            NavigationStack {
-                ManualOTPView(issuer: entry.title, account: entry.userName) { otp in
-                    setURI(otp.uri)
-                }
-            }
-        }
-        .onChange(of: photo) { _, item in
-            guard let item else { return }
-            photo = nil
-            Task { await useImage(item) }
-        }
-    }
-
     /// Sets up the code from a scanned or pasted otpauth:// link.
-    private func use(_ payload: String) {
+    func use(_ payload: String, in entry: Binding<Entry>) {
         if payload.lowercased().hasPrefix("otpauth-migration:") {
             message = String(
                 localized:
@@ -97,13 +37,13 @@ struct OTPSetupSection: View {
         }
         do {
             let parsed = try OTP(uri: payload)
-            setURI(parsed.uri)
+            setURI(parsed.uri, in: entry)
         } catch {
             message = String(localized: "That QR code isn't a one-time code setup (otpauth://).")
         }
     }
 
-    private func useImage(_ item: PhotosPickerItem) async {
+    func useImage(_ item: PhotosPickerItem, in entry: Binding<Entry>) async {
         guard let data = try? await item.loadTransferable(type: Data.self), let image = UIImage(data: data) else {
             message = String(localized: "That image couldn't be read.")
             return
@@ -113,25 +53,109 @@ struct OTPSetupSection: View {
             message = String(localized: "No QR code found in that image.")
             return
         }
-        use(payload)
+        use(payload, in: entry)
     }
 
-    private func pasteLink() {
+    func pasteLink(in entry: Binding<Entry>) {
         guard let text = UIPasteboard.general.string?.trimmingCharacters(in: .whitespacesAndNewlines), !text.isEmpty
         else {
             message = String(localized: "The clipboard is empty.")
             return
         }
-        use(text)
+        use(text, in: entry)
     }
 
     /// Writes the code in KeePassXC's format, dropping the older
     /// "TOTP Seed" / "TOTP Settings" fields so there's one source of truth.
-    private func setURI(_ uri: String?) {
+    func setURI(_ uri: String?, in entry: Binding<Entry>) {
         message = nil
-        entry.fields["TOTP Seed"] = nil
-        entry.fields["TOTP Settings"] = nil
-        entry.fields["otp"] = uri.map { .protected(SecretString($0)) }
+        entry.wrappedValue.fields["TOTP Seed"] = nil
+        entry.wrappedValue.fields["TOTP Settings"] = nil
+        entry.wrappedValue.fields["otp"] = uri.map { .protected(SecretString($0)) }
+    }
+}
+
+/// The editor's one-time code section: the current code, or the ways to
+/// set one up.
+struct OTPSetupSection: View {
+    @Binding var entry: Entry
+    let setup: OTPSetup
+    @State private var photo: PhotosPickerItem?
+
+    var body: some View {
+        Section {
+            if let otp = OTPSetup.otp(of: entry) {
+                TimelineView(.periodic(from: .now, by: 1)) { context in
+                    LabeledContent("Current Code") {
+                        Text(otp.code(at: context.date))
+                            .font(.body.monospaced())
+                    }
+                }
+                Button("Remove One-Time Code", role: .destructive) {
+                    setup.setURI(nil, in: $entry)
+                }
+            } else {
+                if QRCodeReader.canScanWithCamera {
+                    Button("Scan QR Code", systemImage: "qrcode.viewfinder") { setup.isScanning = true }
+                        .accessibilityIdentifier("editor.otp.scan")
+                }
+                PhotosPicker(selection: $photo, matching: .images) {
+                    Label("Choose QR Code Image", systemImage: "photo")
+                }
+                Button("Paste Setup Link", systemImage: "doc.on.clipboard") { setup.pasteLink(in: $entry) }
+                Button("Enter Secret Manually", systemImage: "keyboard") { setup.isEnteringManually = true }
+                    .accessibilityIdentifier("editor.otp.manual")
+            }
+        } header: {
+            Text("One-Time Code")
+        } footer: {
+            if let message = setup.message {
+                Text(message).foregroundStyle(.red)
+            } else if OTPSetup.otp(of: entry) == nil {
+                Text(
+                    "For sites with two-factor authentication: scan or choose the QR code they show, or type the setup key."
+                )
+            }
+        }
+        .onChange(of: photo) { _, item in
+            guard let item else { return }
+            photo = nil
+            Task { await setup.useImage(item, in: $entry) }
+        }
+    }
+}
+
+/// The camera and setup-key screens, attached to the editor itself (not
+/// inside its Form; see `OTPSetup`).
+struct OTPSetupScreens: ViewModifier {
+    @Binding var entry: Entry
+    @Bindable var setup: OTPSetup
+
+    func body(content: Content) -> some View {
+        content
+            .fullScreenCover(isPresented: $setup.isScanning) {
+                NavigationStack {
+                    QRCodeScannerView { payload in
+                        setup.isScanning = false
+                        setup.use(payload, in: $entry)
+                    }
+                    .ignoresSafeArea()
+                    .navigationTitle("Scan QR Code")
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar {
+                        ToolbarItem(placement: .cancellationAction) {
+                            Button("Cancel") { setup.isScanning = false }
+                        }
+                    }
+                }
+            }
+            .sheet(isPresented: $setup.isEnteringManually) {
+                NavigationStack {
+                    ManualOTPView(issuer: entry.title, account: entry.userName) { otp in
+                        setup.setURI(otp.uri, in: $entry)
+                    }
+                }
+            }
     }
 }
 

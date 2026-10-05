@@ -21,6 +21,7 @@ struct EntryEditorView: View {
     /// An icon chosen here, applied when the entry is saved.
     @State private var pendingIcon: IconChoice?
     @State private var isChoosingIcon = false
+    @State private var otpSetup = OTPSetup()
 
     init(session: DatabaseSession, entry: Entry, isNew: Bool, groupID: UUID?) {
         self.session = session
@@ -78,7 +79,7 @@ struct EntryEditorView: View {
                     .autocorrectionDisabled()
                     .accessibilityIdentifier("editor.url")
             }
-            OTPSetupSection(entry: $entry)
+            OTPSetupSection(entry: $entry, setup: otpSetup)
             Section("Notes") {
                 TextEditor(text: $entry.notes)
                     .frame(minHeight: 80)
@@ -134,6 +135,7 @@ struct EntryEditorView: View {
                     .accessibilityIdentifier("editor.done")
             }
         }
+        .modifier(OTPSetupScreens(entry: $entry, setup: otpSetup))
         .sheet(isPresented: $isChoosingIcon) {
             NavigationStack {
                 IconPickerView(
