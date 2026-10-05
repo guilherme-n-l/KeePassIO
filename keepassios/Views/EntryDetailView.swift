@@ -2,6 +2,7 @@ import KPAppState
 import KPModel
 import KPOTP
 import KPSession
+import QuickLook
 import SwiftUI
 
 /// Shows an entry's fields with copy buttons, its one-time code and its
@@ -15,6 +16,9 @@ struct EntryDetailView: View {
     @State private var isEditing = false
     @State private var revealedFields: Set<String> = []
     @State private var copiedField: String?
+    /// A temporary copy of the attachment being previewed or shared.
+    @State private var previewURL: URL?
+    @State private var sharing: SharedFile?
 
     private var entry: Entry? { session.database?.entry(withID: entryID) }
 
@@ -55,9 +59,7 @@ struct EntryDetailView: View {
                 if !entry.attachments.isEmpty {
                     Section("Attachments") {
                         ForEach(entry.attachments.keys.sorted(), id: \.self) { name in
-                            LabeledContent(name) {
-                                Text(Int64(entry.attachments[name]?.count ?? 0), format: .byteCount(style: .file))
-                            }
+                            attachmentRow(name: name, data: entry.attachments[name] ?? Data())
                         }
                     }
                 }
@@ -87,6 +89,17 @@ struct EntryDetailView: View {
             .toolbar {
                 Button("Edit") { isEditing = true }
                     .accessibilityIdentifier("entry.edit")
+            }
+            .quickLookPreview($previewURL)
+            .onChange(of: previewURL) { old, new in
+                if let old, new == nil {
+                    AttachmentFiles.remove(old)
+                }
+            }
+            .sheet(item: $sharing) { file in
+                ShareSheet(items: [file.url])
+                    .presentationDetents([.medium, .large])
+                    .onDisappear { AttachmentFiles.remove(file.url) }
             }
             .sheet(isPresented: $isEditing) {
                 NavigationStack {
@@ -132,6 +145,31 @@ struct EntryDetailView: View {
             }
         }
         .accessibilityIdentifier("field.\(key)")
+    }
+
+    /// Tap to preview (Quick Look); long-press to share or save.
+    private func attachmentRow(name: String, data: Data) -> some View {
+        Button {
+            previewURL = AttachmentFiles.temporaryCopy(named: name, data: data)
+        } label: {
+            LabeledContent {
+                Text(Int64(data.count), format: .byteCount(style: .file))
+            } label: {
+                Label(name, systemImage: "paperclip")
+                    .foregroundStyle(.primary)
+            }
+        }
+        .contextMenu {
+            Button("Preview", systemImage: "eye") {
+                previewURL = AttachmentFiles.temporaryCopy(named: name, data: data)
+            }
+            Button("Share…", systemImage: "square.and.arrow.up") {
+                if let url = AttachmentFiles.temporaryCopy(named: name, data: data) {
+                    sharing = SharedFile(url: url)
+                }
+            }
+        }
+        .accessibilityIdentifier("attachment.\(name)")
     }
 
     private func passwordRow(_ entry: Entry) -> some View {

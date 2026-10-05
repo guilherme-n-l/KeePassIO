@@ -22,6 +22,7 @@ struct EntryEditorView: View {
     @State private var pendingIcon: IconChoice?
     @State private var isChoosingIcon = false
     @State private var otpSetup = OTPSetup()
+    @State private var attachmentEditing = AttachmentEditing()
 
     init(session: DatabaseSession, entry: Entry, isNew: Bool, groupID: UUID?) {
         self.session = session
@@ -80,6 +81,7 @@ struct EntryEditorView: View {
                     .accessibilityIdentifier("editor.url")
             }
             OTPSetupSection(entry: $entry, setup: otpSetup)
+            AttachmentsSection(entry: $entry, editing: attachmentEditing)
             Section("Notes") {
                 TextEditor(text: $entry.notes)
                     .frame(minHeight: 80)
@@ -136,6 +138,7 @@ struct EntryEditorView: View {
             }
         }
         .modifier(OTPSetupScreens(entry: $entry, setup: otpSetup))
+        .modifier(AttachmentScreens(entry: $entry, editing: attachmentEditing))
         .sheet(isPresented: $isChoosingIcon) {
             NavigationStack {
                 IconPickerView(
