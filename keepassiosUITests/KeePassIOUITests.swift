@@ -132,26 +132,29 @@ final class KeePassIOUITests: XCTestCase {
         // Long-pressing an entry offers to copy its password.
         app.buttons["entry.Bank"].press(forDuration: 1)
         let copyPassword = app.buttons["entryMenu.copyPassword"]
-        XCTAssertTrue(copyPassword.waitForExistence(timeout: 5))
+        XCTAssertTrue(copyPassword.waitForExistence(timeout: 5), "The entry's long-press menu didn't appear")
         copyPassword.tap()
 
         driver.save()
-        app.navigationBars.buttons.element(boundBy: 0).tap()
+        driver.goBack()
 
         // Long-pressing a database offers a rename; the alias replaces the
         // file name in the library.
         let row = app.buttons["library.database.Database"]
-        XCTAssertTrue(row.waitForExistence(timeout: 5))
+        XCTAssertTrue(row.waitForExistence(timeout: 5), "Didn't get back to the library")
         row.press(forDuration: 1)
         let rename = app.buttons["library.rename"]
-        XCTAssertTrue(rename.waitForExistence(timeout: 5))
+        XCTAssertTrue(rename.waitForExistence(timeout: 5), "The database's long-press menu didn't appear")
         rename.tap()
         let field = app.textFields["library.rename.field"]
-        XCTAssertTrue(field.waitForExistence(timeout: 5))
+        XCTAssertTrue(field.waitForExistence(timeout: 5), "The rename alert didn't appear")
         field.tap()
         field.typeText("Default")
         app.buttons["library.rename.confirm"].tap()
-        XCTAssertTrue(app.buttons["library.database.Default"].waitForExistence(timeout: 5))
+        XCTAssertTrue(
+            app.buttons["library.database.Default"].waitForExistence(timeout: 5),
+            "The alias didn't replace the file name in the library"
+        )
     }
 
     @MainActor
@@ -223,6 +226,18 @@ struct AppDriver {
         let saved = NSPredicate(format: "isEnabled == false")
         test.expectation(for: saved, evaluatedWith: saveButton)
         test.waitForExpectations(timeout: 15)
+    }
+
+    /// Taps the navigation bar's back button. On iOS 26 it isn't reliably
+    /// the bar's first button, so it's found by its system identifier or
+    /// the previous screen's title first.
+    func goBack() {
+        let bar = app.navigationBars.firstMatch
+        for candidate in [bar.buttons["BackButton"], bar.buttons["KeePassIO"]] where candidate.exists {
+            candidate.tap()
+            return
+        }
+        bar.buttons.element(boundBy: 0).tap()
     }
 
     func lock() {

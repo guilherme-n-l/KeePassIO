@@ -47,8 +47,20 @@ jobs:
           # The failure messages are only inside the result bundle; print
           # them so they can be read from the log.
           if [ -d TestResults.xcresult ]; then
-            xcrun xcresulttool get test-results summary --path TestResults.xcresult \
-              | python3 -c 'import json,sys; [print(f.get("testIdentifierString") or f.get("testName"), f.get("failureText"), sep=": ") for f in json.load(sys.stdin).get("testFailures", [])]'
+            # Failure messages with their file and line, from the test tree.
+            xcrun xcresulttool get test-results tests --path TestResults.xcresult \
+              | python3 -c '
+          import json, sys
+          def walk(node, test=""):
+              if node.get("nodeType") == "Test Case":
+                  test = node.get("name", test)
+              if node.get("nodeType") == "Failure Message":
+                  print(test + ": " + node.get("name", ""))
+              for child in node.get("children", []):
+                  walk(child, test)
+          for root in json.load(sys.stdin).get("testNodes", []):
+              walk(root)
+          '
           fi
 
       - name: Upload test results
