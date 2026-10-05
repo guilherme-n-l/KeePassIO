@@ -41,6 +41,16 @@ jobs:
             -resultBundlePath TestResults.xcresult \
             CODE_SIGNING_ALLOWED=NO
 
+      - name: Show test failures
+        if: failure()
+        run: |
+          # The failure messages are only inside the result bundle; print
+          # them so they can be read from the log.
+          if [ -d TestResults.xcresult ]; then
+            xcrun xcresulttool get test-results summary --path TestResults.xcresult \
+              | python3 -c 'import json,sys; [print(f.get("testIdentifierString") or f.get("testName"), f.get("failureText"), sep=": ") for f in json.load(sys.stdin).get("testFailures", [])]'
+          fi
+
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

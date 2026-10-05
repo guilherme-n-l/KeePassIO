@@ -148,6 +148,7 @@ final class KeePassIOUITests: XCTestCase {
         rename.tap()
         let field = app.textFields["library.rename.field"]
         XCTAssertTrue(field.waitForExistence(timeout: 5))
+        field.tap()
         field.typeText("Default")
         app.buttons["library.rename.confirm"].tap()
         XCTAssertTrue(app.buttons["library.database.Default"].waitForExistence(timeout: 5))
