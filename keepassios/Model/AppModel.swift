@@ -36,10 +36,15 @@ final class AppModel {
     /// New databases are saved where the user picks in Files; UI tests,
     /// which can't drive the document picker, keep them in the app.
     let picksLocationForNewDatabases: Bool
+    /// How long confirmations such as "Copied" stay on screen. Longer under
+    /// UI tests: on a slow simulator, XCUITest's wait for the app to
+    /// settle after a tap can outlast a short confirmation.
+    let confirmationDuration: Duration
 
     init(launchArguments: [String] = ProcessInfo.processInfo.arguments) {
         let isUITest = launchArguments.contains("-UITest")
         picksLocationForNewDatabases = !isUITest
+        confirmationDuration = isUITest ? .seconds(10) : .seconds(1.5)
         let fallbackURL = URL.applicationSupportDirectory.appendingPathComponent("AppState.json")
         store = (isUITest ? nil : AppStateStore.shared()) ?? AppStateStore(fileURL: fallbackURL)
         codec = KDBXCodec()

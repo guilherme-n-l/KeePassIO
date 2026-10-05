@@ -213,7 +213,7 @@ struct EntryDetailView: View {
         Clipboard.copy(value, sensitive: sensitive, clearAfter: model.settings.clipboardClearSeconds)
         withAnimation { copiedField = field }
         Task {
-            try? await Task.sleep(for: .seconds(1.5))
+            try? await Task.sleep(for: model.confirmationDuration)
             withAnimation { if copiedField == field { copiedField = nil } }
         }
     }
