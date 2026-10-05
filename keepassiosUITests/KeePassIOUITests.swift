@@ -155,7 +155,9 @@ final class KeePassIOUITests: XCTestCase {
         XCTAssertTrue(field.waitForExistence(timeout: 5), "The rename alert has no text field")
         field.tap()
         field.typeText("Default")
-        alert.buttons["Rename"].tap()
+        // The alert's button appears twice in the accessibility tree
+        // (nested), so take the first match.
+        alert.buttons["Rename"].firstMatch.tap()
         XCTAssertTrue(
             app.buttons["library.database.Default"].waitForExistence(timeout: 5),
             "The alias didn't replace the file name in the library"
