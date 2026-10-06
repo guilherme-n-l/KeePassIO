@@ -6,7 +6,7 @@
 	<array>
 		<dict>
 			<key>UTTypeIdentifier</key>
-			<string>dev.guilhermenl.keepassios.item</string>
+			<string>dev.guilhermenl.keepassio.item</string>
 			<key>UTTypeDescription</key>
 			<string>KeePassIO Entry or Group</string>
 			<key>UTTypeConformsTo</key>

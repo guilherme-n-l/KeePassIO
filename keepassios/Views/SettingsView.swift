@@ -4,6 +4,7 @@ import SwiftUI
 
 struct SettingsView: View {
     private static let sponsorsURL = URL(string: "https://github.com/sponsors/guilherme-n-l")
+    private static let privacyURL = URL(string: "https://github.com/guilherme-n-l/KeePassIO/blob/main/PRIVACY.md")
 
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
@@ -37,17 +38,18 @@ struct SettingsView: View {
                         .accessibilityIdentifier("settings.network")
                     Toggle("Download Website Icons", isOn: setting(\.faviconDownloadEnabled))
                         .disabled(!model.settings.networkAllowed)
-                    Toggle("Check for Breached Passwords", isOn: setting(\.breachCheckEnabled))
-                        .disabled(!model.settings.networkAllowed)
                 } header: {
                     Text("Network")
                 } footer: {
                     Text(
-                        "Off by default. With network access off, the app never connects to the internet. Breach checks send only the first five characters of a password's SHA-1 hash."
+                        "Off by default. With network access off, the app never connects to the internet. Website icons are fetched from the entry's own website."
                     )
                 }
                 Section {
                     NavigationLink("Diagnostics") { DiagnosticsView() }
+                    if let privacyURL = Self.privacyURL {
+                        Link("Privacy Policy", destination: privacyURL)
+                    }
                     if let sponsorsURL = Self.sponsorsURL {
                         Link("Support Development", destination: sponsorsURL)
                     }

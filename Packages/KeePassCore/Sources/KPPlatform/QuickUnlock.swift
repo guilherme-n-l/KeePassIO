@@ -15,7 +15,7 @@
     /// extension share (their first `keychain-access-groups` entry), so a key
     /// stored by the app unlocks in the extension too.
     public enum QuickUnlock {
-        private static let service = "dev.guilhermenl.keepassios.quick-unlock"
+        private static let service = "dev.guilhermenl.keepassio.quick-unlock"
 
         private struct Stored: Codable {
             let password: Data?

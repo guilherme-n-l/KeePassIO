@@ -20,7 +20,7 @@ cd "$(git rev-parse --show-toplevel)"
 configuration="Debug"
 device=""
 launch=1
-bundle_id="dev.guilhermenl.keepassios"
+bundle_id="dev.guilhermenl.keepassio"
 derived_data="${TMPDIR:-/tmp}/keepassios-flash"
 
 while (($#)); do

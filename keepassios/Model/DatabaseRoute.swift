@@ -29,7 +29,7 @@ nonisolated struct DraggedItem: Codable, Hashable, Identifiable, Transferable {
 extension UTType {
     /// Entries and groups dragged within the app; declared in
     /// Config/keepassios-Info.plist.
-    nonisolated static let keepassItem = UTType(exportedAs: "dev.guilhermenl.keepassios.item")
+    nonisolated static let keepassItem = UTType(exportedAs: "dev.guilhermenl.keepassio.item")
 }
 
 extension EnvironmentValues {

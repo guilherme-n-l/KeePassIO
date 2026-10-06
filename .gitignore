@@ -2,6 +2,8 @@
 xcuserdata/
 *.xcuserstate
 DerivedData/
+# Archives and exports from scripts/release.sh
+/build/
 
 # SwiftPM
 .build/

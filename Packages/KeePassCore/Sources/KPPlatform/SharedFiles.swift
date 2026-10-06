@@ -4,7 +4,7 @@
 
     /// Files the app and its extensions share through the App Group.
     public enum SharedFiles {
-        public static let appGroup = "group.dev.guilhermenl.keepassios"
+        public static let appGroup = "group.dev.guilhermenl.keepassio"
 
         /// Where the copy of a database's encrypted file is kept for the
         /// AutoFill extension (see `CachedDatabaseFile`).

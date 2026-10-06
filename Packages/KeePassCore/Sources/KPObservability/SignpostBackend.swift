@@ -7,7 +7,7 @@
     /// `XCTOSSignpostMetric`. Signposts cost almost nothing when no tool is
     /// recording.
     public final class SignpostBackend: TraceBackend {
-        public static let subsystem = "dev.guilhermenl.keepassios"
+        public static let subsystem = "dev.guilhermenl.keepassio"
 
         private let signposter: OSSignposter
         private let open = Mutex<[UInt64: OSSignpostIntervalState]>([:])

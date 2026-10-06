@@ -22,7 +22,7 @@ public actor AppStateStore {
 
     /// The store in the shared App Group container, or nil if the
     /// container isn't available (for example in unit tests).
-    public static func shared(appGroup: String = "group.dev.guilhermenl.keepassios") -> AppStateStore? {
+    public static func shared(appGroup: String = "group.dev.guilhermenl.keepassio") -> AppStateStore? {
         #if canImport(Darwin)
             guard
                 let container = FileManager.default.containerURL(
