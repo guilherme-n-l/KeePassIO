@@ -1,0 +1,95 @@
+import KPAppState
+import KPObservability
+import SwiftUI
+
+struct SettingsView: View {
+    private static let sponsorsURL = URL(string: "https://github.com/sponsors/guilherme-n-l")
+    private static let privacyURL = URL(string: "https://github.com/guilherme-n-l/KeePassIO/blob/main/PRIVACY.md")
+
+    @Environment(AppModel.self) private var model
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                AutoFillSettingsSection()
+                AccentColorSection()
+                Section {
+                    Picker("Auto-Lock", selection: setting(\.autoLockSeconds)) {
+                        Text("Immediately").tag(0)
+                        Text("After 1 Minute").tag(60)
+                        Text("After 2 Minutes").tag(120)
+                        Text("After 5 Minutes").tag(300)
+                        Text("After 15 Minutes").tag(900)
+                    }
+                    .id(pickerIdentity)
+                    Picker("Clear Clipboard", selection: setting(\.clipboardClearSeconds)) {
+                        Text("After 30 Seconds").tag(30)
+                        Text("After 1 Minute").tag(60)
+                        Text("After 2 Minutes").tag(120)
+                        Text("Never").tag(0)
+                    }
+                    .id(pickerIdentity)
+                } header: {
+                    Text("Security")
+                }
+                Section {
+                    Toggle("Allow Network Access", isOn: setting(\.networkAllowed))
+                        .accessibilityIdentifier("settings.network")
+                    Toggle("Download Website Icons", isOn: setting(\.faviconDownloadEnabled))
+                        .disabled(!model.settings.networkAllowed)
+                } header: {
+                    Text("Network")
+                } footer: {
+                    Text(
+                        "Off by default. With network access off, the app never connects to the internet. Website icons are fetched from the entry's own website."
+                    )
+                }
+                Section {
+                    NavigationLink("Diagnostics") { DiagnosticsView() }
+                    if let privacyURL = Self.privacyURL {
+                        Link("Privacy Policy", destination: privacyURL)
+                    }
+                    if let sponsorsURL = Self.sponsorsURL {
+                        Link("Support Development", destination: sponsorsURL)
+                    }
+                    LabeledContent("Version", value: Bundle.main.appVersion)
+                } header: {
+                    Text("About")
+                } footer: {
+                    Text("KeePassIO is free and open source. There is no paid version.")
+                }
+            }
+            .navigationTitle("Settings")
+            .toolbar {
+                Button("Done") { dismiss() }
+            }
+        }
+    }
+
+    /// Menu pickers keep the tint they were created with (a SwiftUI bug,
+    /// see developer.apple.com/forums/thread/770369), so they're rebuilt
+    /// when the accent color changes.
+    private var pickerIdentity: String {
+        model.settings.accentColor ?? "default"
+    }
+
+    private func setting<Value>(_ keyPath: WritableKeyPath<Settings, Value>) -> Binding<Value> {
+        Binding(
+            get: { model.settings[keyPath: keyPath] },
+            set: { newValue in
+                var settings = model.settings
+                settings[keyPath: keyPath] = newValue
+                Task { await model.updateSettings(settings) }
+            }
+        )
+    }
+}
+
+extension Bundle {
+    var appVersion: String {
+        let version = object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?"
+        let build = object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "?"
+        return "\(version) (\(build))"
+    }
+}

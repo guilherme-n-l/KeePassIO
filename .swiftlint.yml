@@ -1,0 +1,24 @@
+# Style and formatting belong to swift-format; SwiftLint covers correctness
+# and the project-specific rules below.
+disabled_rules:
+  - trailing_comma
+  - opening_brace
+  - line_length
+  - identifier_name
+opt_in_rules:
+  - force_unwrapping
+  - empty_count
+  - first_where
+  - contains_over_first_not_nil
+  - discouraged_optional_boolean
+  - fatal_error_message
+  - private_over_fileprivate
+excluded:
+  - .build
+  - DerivedData
+custom_rules:
+  no_secret_interpolation_in_logs:
+    name: "No entry data in logs"
+    regex: '(Logger|logger|os_log|print)\b.*\\\((entry|password|username|secret|field|title|url)\b'
+    message: "Never log entry contents; log sizes, counts or durations instead."
+    severity: error

@@ -1,0 +1,51 @@
+#!/usr/bin/env bpftrace
+// Syscall latency (microseconds) inside KeePassIO spans, keyed by span and
+// syscall number (`ausyscall --dump` or the kernel's syscall table names
+// them; 74 is fsync and 82 rename on x86_64). Shows what fsync, rename and file reads cost during save and
+// unlock. $1 is the path to the instrumented binary.
+
+// Track the innermost open span per thread with a small stack, so time in
+// a nested span is charged to it and the outer span resumes afterwards.
+uprobe:$1:kp_probe_begin
+{
+  @depth[tid] = @depth[tid] + 1;
+  @stack[tid, @depth[tid]] = arg0;
+  @span[tid] = arg0;
+}
+
+uprobe:$1:kp_probe_end
+/@depth[tid]/
+{
+  delete(@stack[tid, @depth[tid]]);
+  @depth[tid] = @depth[tid] - 1;
+  if (@depth[tid] > 0) {
+    @span[tid] = @stack[tid, @depth[tid]];
+  } else {
+    delete(@span[tid]);
+    delete(@depth[tid]);
+  }
+}
+
+tracepoint:raw_syscalls:sys_enter
+/@span[tid]/
+{
+  @sys_start[tid] = nsecs;
+  @sys_id[tid] = args.id;
+}
+
+tracepoint:raw_syscalls:sys_exit
+/@sys_start[tid]/
+{
+  @syscall_us[@span[tid], @sys_id[tid]] = hist((nsecs - @sys_start[tid]) / 1000);
+  delete(@sys_start[tid]);
+  delete(@sys_id[tid]);
+}
+
+END
+{
+  clear(@span);
+  clear(@stack);
+  clear(@depth);
+  clear(@sys_start);
+  clear(@sys_id);
+}

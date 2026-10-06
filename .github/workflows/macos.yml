@@ -1,0 +1,100 @@
+name: macOS
+
+on:
+  push:
+    branches: [main, "claude/**"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  app:
+    name: Build and test the app
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install linters
+        run: brew install swiftlint shellcheck
+
+      - name: Lint
+        # Nix formatting is checked in the Linux job.
+        run: scripts/lint.sh --skip-nix
+
+      - name: Test core packages on macOS
+        run: swift test --package-path Packages/KeePassCore
+
+      - name: Build and test the app on a simulator
+        run: |
+          device="$(xcrun simctl list devices available --json \
+            | python3 -c 'import json,sys; d=json.load(sys.stdin)["devices"]; print(next(x["udid"] for r in sorted(d, reverse=True) if "iOS" in r for x in d[r] if x["name"].startswith("iPhone")))')"
+          xcodebuild test \
+            -project keepassios.xcodeproj \
+            -scheme keepassios \
+            -destination "id=$device" \
+            -resultBundlePath TestResults.xcresult \
+            CODE_SIGNING_ALLOWED=NO
+
+      - name: Show test failures
+        if: failure()
+        run: |
+          # The failure messages are only inside the result bundle; print
+          # them so they can be read from the log.
+          if [ -d TestResults.xcresult ]; then
+            # Failure messages with their file and line, from the test tree.
+            xcrun xcresulttool get test-results tests --path TestResults.xcresult \
+              | python3 -c '
+          import json, sys
+          def walk(node, test=""):
+              if node.get("nodeType") == "Test Case":
+                  test = node.get("name", test)
+              if node.get("nodeType") == "Failure Message":
+                  print(test + ": " + node.get("name", ""))
+              for child in node.get("children", []):
+                  walk(child, test)
+          for root in json.load(sys.stdin).get("testNodes", []):
+              walk(root)
+          '
+          fi
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: test-results
+          path: TestResults.xcresult
+          if-no-files-found: ignore
+
+  release:
+    name: Build a Release archive
+    # What goes to the App Store: Release configuration (whole-module
+    # optimization), for devices, app and AutoFill extension. Unsigned
+    # here; scripts/release.sh signs and uploads on the owner's Mac.
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Archive
+        run: |
+          xcodebuild archive \
+            -project keepassios.xcodeproj \
+            -scheme keepassios \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath build/KeePassIO.xcarchive \
+            CODE_SIGNING_ALLOWED=NO
+
+      - name: Check the archive
+        run: |
+          app=build/KeePassIO.xcarchive/Products/Applications/keepassios.app
+          test -d "$app/PlugIns/KeePassIOSAutoFill.appex"
+          test -f "$app/PrivacyInfo.xcprivacy"
+          test -f "$app/PlugIns/KeePassIOSAutoFill.appex/PrivacyInfo.xcprivacy"
+          /usr/libexec/PlistBuddy -c "Print :ITSAppUsesNonExemptEncryption" "$app/Info.plist"
+          /usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$app/Info.plist"

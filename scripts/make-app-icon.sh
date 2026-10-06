@@ -1,0 +1,67 @@
+#!/usr/bin/env bash
+# Renders the app icon (light, dark and tinted variants) into the asset
+# catalog from Design/AppIcon.svg, with rsvg-convert (librsvg) and
+# ImageMagick, and writes the glyph alone as the in-app Logo image.
+#
+# The SVG has a green square (#rect1) behind a white glyph. Each variant
+# recolors those two and renders a fully opaque 1024x1024 PNG, as the App
+# Store requires.
+set -euo pipefail
+
+root="$(cd "$(dirname "$0")/.." && pwd)"
+source_svg="$root/Design/AppIcon.svg"
+out="$root/keepassios/Assets.xcassets/AppIcon.appiconset"
+work="$(mktemp -d)"
+trap 'rm -rf "$work"' EXIT
+
+for tool in rsvg-convert convert; do
+  if ! command -v "$tool" >/dev/null 2>&1; then
+    echo "make-app-icon: $tool not found (nix develop provides it)" >&2
+    exit 1
+  fi
+done
+
+# render BACKGROUND GLYPH FILE
+render() {
+  sed -e "s/opacity:0\.870246;fill:#4fa34f/opacity:1;fill:$1/" \
+    -e "s/fill:#ffffff/fill:$2/g" \
+    "$source_svg" >"$work/icon.svg"
+  rsvg-convert --width 1024 --height 1024 "$work/icon.svg" -o "$work/icon.png"
+  convert "$work/icon.png" -background "$1" -alpha remove -alpha off -depth 8 -strip "$out/$3"
+}
+
+render "#4fa34f" "#ffffff" AppIcon.png
+render "#0e1c0e" "#5fbf5f" AppIcon-Dark.png
+render "#000000" "#ffffff" AppIcon-Tinted.png
+# The light icon with iOS-like rounded corners, for the README.
+media="$root/docs/media"
+mkdir -p "$media"
+convert "$out/AppIcon.png" -resize 512x512 \
+  \( -size 512x512 xc:none -fill white -draw "roundrectangle 0,0 511,511 115,115" \) \
+  -alpha off -compose CopyOpacity -composite -depth 8 -strip "$media/icon.png"
+
+# The glyph without its square, as a vector template image: the app tints
+# it with the accent color (lock cover, empty library).
+logo="$root/keepassios/Assets.xcassets/Logo.imageset"
+mkdir -p "$logo"
+sed -e '/<rect/,/\/>/d' "$source_svg" >"$logo/Logo.svg"
+cat >"$logo/Contents.json" <<'JSON'
+{
+  "images" : [
+    {
+      "filename" : "Logo.svg",
+      "idiom" : "universal"
+    }
+  ],
+  "info" : {
+    "author" : "xcode",
+    "version" : 1
+  },
+  "properties" : {
+    "preserves-vector-representation" : true,
+    "template-rendering-intent" : "template"
+  }
+}
+JSON
+
+echo "Wrote $out, $logo and $media/icon.png"

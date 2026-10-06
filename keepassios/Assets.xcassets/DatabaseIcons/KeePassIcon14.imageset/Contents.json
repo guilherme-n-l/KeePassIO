@@ -1,0 +1,15 @@
+{
+  "images": [
+    {
+      "filename": "C14_Laptop_Power.svg",
+      "idiom": "universal"
+    }
+  ],
+  "info": {
+    "author": "xcode",
+    "version": 1
+  },
+  "properties": {
+    "preserves-vector-representation": true
+  }
+}

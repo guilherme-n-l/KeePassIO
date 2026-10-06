@@ -1,0 +1,15 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "KeePassIO" : {
+      "shouldTranslate" : false
+    },
+    "No Databases" : {
+      "comment" : "Title of the empty library screen shown when no database has been added."
+    },
+    "Open a KeePass database (.kdbx) from the Files app to get started." : {
+      "comment" : "Explanation under the empty library title."
+    }
+  },
+  "version" : "1.0"
+}
