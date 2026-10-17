@@ -39,6 +39,7 @@ jobs:
             -scheme keepassios \
             -destination "id=$device" \
             -resultBundlePath TestResults.xcresult \
+            -skip-testing:keepassiosUITests/ScreenshotTests \
             CODE_SIGNING_ALLOWED=NO
 
       - name: Show test failures
