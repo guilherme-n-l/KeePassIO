@@ -50,9 +50,30 @@ jobs:
             -destination "id=$DEVICE" \
             -resultBundlePath Screenshots.xcresult \
             -only-testing:keepassiosUITests/ScreenshotTests \
+            -parallel-testing-enabled NO \
             CODE_SIGNING_ALLOWED=NO
 
+      - name: Show test failures
+        if: failure()
+        run: |
+          xcrun xcresulttool get test-results tests --path Screenshots.xcresult \
+            | python3 -c '
+          import json, sys
+          def walk(node, test=""):
+              if node.get("nodeType") == "Test Case":
+                  test = node.get("name", test)
+              if node.get("nodeType") == "Failure Message":
+                  print(test + ": " + node.get("name", ""))
+              for child in node.get("children", []):
+                  walk(child, test)
+          for root in json.load(sys.stdin).get("testNodes", []):
+              walk(root)
+          '
+
+      # The screenshots taken before a failure are pushed too, to show
+      # where the test stopped.
       - name: Export the screenshots
+        if: always() && hashFiles('Screenshots.xcresult/Info.plist') != ''
         run: |
           xcrun xcresulttool export attachments --path Screenshots.xcresult --output-path exported
           mkdir screenshots
@@ -63,14 +84,18 @@ jobs:
           for test in json.load(open("exported/manifest.json")):
               for item in test.get("attachments", []):
                   name = item["suggestedHumanReadableName"].split("_")[0]
+                  if not item["exportedFileName"].endswith(".png"):
+                      continue
                   shutil.copy(f"exported/{item['exportedFileName']}", f"screenshots/{name}.png")
                   print(name)
           PY
-          sips -g pixelWidth -g pixelHeight screenshots/*.png
+          sips -g pixelWidth -g pixelHeight screenshots/*.png || true
 
       - name: Commit to the screenshots branch
+        if: always() && hashFiles('screenshots/*.png') != ''
         run: |
           folder="$GITHUB_SHA"
+          if [ "${{ job.status }}" != success ]; then folder="$folder-failed"; fi
           git config user.name "github-actions[bot]"
           git config user.email "41898299+github-actions[bot]@users.noreply.github.com"
           if git fetch origin app-store-screenshots; then
