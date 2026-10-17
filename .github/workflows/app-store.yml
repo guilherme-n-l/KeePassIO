@@ -1,0 +1,84 @@
+name: App Store
+
+# Uploads the listing text and screenshots in docs/app-store/ to the App
+# Store Connect version, through the App Store Connect API with fastlane
+# deliver. Run by hand from the Actions tab; it never uploads a build or
+# submits for review.
+#
+# Needs three repository secrets, from an App Store Connect API team key
+# (Users and Access > Integrations, role App Manager):
+#   ASC_KEY_ID      the key's ID
+#   ASC_ISSUER_ID   the issuer ID shown above the keys
+#   ASC_API_KEY     the contents of the downloaded AuthKey_<ID>.p8
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: App Store version to update
+        default: "1.0"
+      metadata:
+        description: Upload the listing text
+        type: boolean
+        default: true
+      screenshots:
+        description: Replace the screenshots
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  deliver:
+    name: Update the App Store listing
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install fastlane
+        run: command -v fastlane || brew install fastlane
+
+      - name: Write the API key
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_API_KEY: ${{ secrets.ASC_API_KEY }}
+        run: |
+          python3 - <<'PY'
+          import json, os
+          key = {
+              "key_id": os.environ["ASC_KEY_ID"],
+              "issuer_id": os.environ["ASC_ISSUER_ID"],
+              "key": os.environ["ASC_API_KEY"],
+              "in_house": False,
+          }
+          path = os.path.join(os.environ["RUNNER_TEMP"], "asc-api-key.json")
+          with open(os.open(path, os.O_WRONLY | os.O_CREAT, 0o600), "w") as file:
+              json.dump(key, file)
+          PY
+
+      - name: Upload to App Store Connect
+        env:
+          VERSION: ${{ inputs.version }}
+          SKIP_METADATA: ${{ !inputs.metadata }}
+          SKIP_SCREENSHOTS: ${{ !inputs.screenshots }}
+        run: |
+          fastlane deliver \
+            --api_key_path "$RUNNER_TEMP/asc-api-key.json" \
+            --app_identifier dev.guilhermenl.keepassio \
+            --platform ios \
+            --app_version "$VERSION" \
+            --metadata_path docs/app-store/metadata \
+            --screenshots_path docs/app-store/screenshots \
+            --skip_metadata "$SKIP_METADATA" \
+            --skip_screenshots "$SKIP_SCREENSHOTS" \
+            --overwrite_screenshots true \
+            --skip_binary_upload true \
+            --submit_for_review false \
+            --run_precheck_before_submit false \
+            --force true
+
+      - name: Remove the API key
+        if: always()
+        run: rm -f "$RUNNER_TEMP/asc-api-key.json"

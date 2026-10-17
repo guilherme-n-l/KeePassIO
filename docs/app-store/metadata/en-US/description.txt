@@ -1,17 +1,3 @@
-# App Store listing text
-
-Copy each block into the matching App Store Connect field. Limits are Apple's.
-
-## Subtitle (App Information, 30)
-
-Free, open-source KeePass app
-
-## Promotional Text (170)
-
-Your KeePass passwords, free and open source. Face ID, AutoFill, one-time codes and QR scanning, with no account, no ads and no tracking.
-
-## Description (4000)
-
 KeePassIO is a free, open-source password manager for KeePass databases. Open the .kdbx file you already use with KeePassXC or KeePass, keep it wherever you like in the Files app, and use it on your iPhone with Face ID and AutoFill. There is no paywall, no account and no subscription.
 
 YOUR DATABASE, YOUR STORAGE

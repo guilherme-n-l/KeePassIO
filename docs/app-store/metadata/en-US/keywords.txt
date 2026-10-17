@@ -1,0 +1,1 @@
+keepass,kdbx,password manager,2fa,totp,authenticator,autofill,vault,offline,open source
