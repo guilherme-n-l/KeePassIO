@@ -9,6 +9,12 @@ final class KeePassIOUITests: XCTestCase {
         continueAfterFailure = false
     }
 
+    /// The launch tests run in every orientation and can leave the shared
+    /// simulator in landscape, where the keyboard covers the fields.
+    override func setUp() async throws {
+        await MainActor.run { XCUIDevice.shared.orientation = .portrait }
+    }
+
     /// Launches the app from an empty library.
     @MainActor
     private func launch() -> AppDriver {
