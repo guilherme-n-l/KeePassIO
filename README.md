@@ -64,6 +64,7 @@ Every operation is traced with signposts (Instruments), with on-device latency h
 - **Flash to a phone without opening Xcode:** connect the device (paired, Developer Mode on) and run `scripts/flash.sh`. It builds with `xcodebuild`, installs with `xcrun devicectl` and launches the app; `--release`, `--device NAME`, `--no-launch` and `--list` are available. Xcode must be installed (it provides these tools) and signed in to the project's development team once.
 - **AutoFill:** after installing, tap **Turn On AutoFill** in the app (library or Settings).
 - **App Store / TestFlight:** `scripts/release.sh` archives a Release build (build number = commit count), signs it with the team's account in Xcode and uploads it to App Store Connect; `--no-upload` only exports the `.ipa`. CI builds the same Release archive unsigned on every push.
+- **App Store listing:** the text and screenshots live in [docs/app-store](docs/app-store/README.md); the App Store workflow uploads them to App Store Connect.
 - **Core:** `swift test --package-path Packages/KeePassCore` (macOS or Linux). Interop tests run when `keepassxc-cli` is installed.
 - **Tools:** `nix develop` (or direnv with the included `.envrc`) gives a shell with every linter and test tool and turns on the git hooks; Xcode supplies Swift. See [CONTRIBUTING.md](CONTRIBUTING.md).
 

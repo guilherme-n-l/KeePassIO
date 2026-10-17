@@ -1,0 +1,119 @@
+name: Screenshots
+
+# App Store screenshots from the demo database, on the largest iPhone
+# (6.9" display, 1320 x 2868). The PNGs are committed to the
+# app-store-screenshots branch, one folder per commit:
+#
+#   app-store-screenshots
+#   └── <commit>/01-Library.png, 02-Database.png, ...
+
+on:
+  push:
+    branches: ["claude/**"]
+    paths:
+      - "keepassios/**"
+      - "keepassiosUITests/ScreenshotTests.swift"
+      - ".github/workflows/screenshots.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  screenshots:
+    name: Take App Store screenshots
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Boot the simulator
+        run: |
+          device="$(xcrun simctl list devices available --json \
+            | python3 -c 'import json,sys; d=json.load(sys.stdin)["devices"]; print(next(x["udid"] for r in sorted(d, reverse=True) if "iOS" in r for x in d[r] if x["name"] == "iPhone 17 Pro Max"))')"
+          echo "DEVICE=$device" >> "$GITHUB_ENV"
+          xcrun simctl boot "$device"
+          xcrun simctl bootstatus "$device" -b
+          # Apple's marketing status bar: 9:41, full battery and signal.
+          xcrun simctl status_bar "$device" override \
+            --time 9:41 --dataNetwork wifi --wifiMode active --wifiBars 3 \
+            --cellularMode active --cellularBars 4 --batteryState charged --batteryLevel 100
+
+      - name: Take the screenshots
+        run: |
+          xcodebuild test \
+            -project keepassios.xcodeproj \
+            -scheme keepassios \
+            -destination "id=$DEVICE" \
+            -resultBundlePath Screenshots.xcresult \
+            -only-testing:keepassiosUITests/ScreenshotTests \
+            -parallel-testing-enabled NO \
+            CODE_SIGNING_ALLOWED=NO
+
+      - name: Show test failures
+        if: failure()
+        run: |
+          xcrun xcresulttool get test-results tests --path Screenshots.xcresult \
+            | python3 -c '
+          import json, sys
+          def walk(node, test=""):
+              if node.get("nodeType") == "Test Case":
+                  test = node.get("name", test)
+              if node.get("nodeType") == "Failure Message":
+                  print(test + ": " + node.get("name", ""))
+              for child in node.get("children", []):
+                  walk(child, test)
+          for root in json.load(sys.stdin).get("testNodes", []):
+              walk(root)
+          '
+
+      # The screenshots taken before a failure are pushed too, to show
+      # where the test stopped.
+      - name: Export the screenshots
+        if: always() && hashFiles('Screenshots.xcresult/Info.plist') != ''
+        run: |
+          xcrun xcresulttool export attachments --path Screenshots.xcresult --output-path exported
+          mkdir screenshots
+          # Attachments are exported under generated names; the manifest
+          # maps them back to the names the test gave them.
+          python3 - <<'PY'
+          import json, shutil
+          for test in json.load(open("exported/manifest.json")):
+              for item in test.get("attachments", []):
+                  name = item["suggestedHumanReadableName"].split("_")[0]
+                  if not item["exportedFileName"].endswith(".png"):
+                      continue
+                  shutil.copy(f"exported/{item['exportedFileName']}", f"screenshots/{name}.png")
+                  print(name)
+          PY
+          sips -g pixelWidth -g pixelHeight screenshots/*.png || true
+
+      - name: Commit to the screenshots branch
+        if: always() && hashFiles('screenshots/*.png') != ''
+        run: |
+          folder="$GITHUB_SHA"
+          if [ "${{ job.status }}" != success ]; then folder="$folder-failed"; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898299+github-actions[bot]@users.noreply.github.com"
+          if git fetch origin app-store-screenshots; then
+            git worktree add shots origin/app-store-screenshots
+            git -C shots switch -c app-store-screenshots
+          else
+            git worktree add --orphan -b app-store-screenshots shots
+          fi
+          mkdir -p "shots/$folder"
+          cp screenshots/*.png "shots/$folder/"
+          git -C shots add "$folder"
+          git -C shots commit -m "Screenshots for $GITHUB_SHA"
+          git -C shots push origin app-store-screenshots
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: screenshot-results
+          path: Screenshots.xcresult
+          if-no-files-found: ignore

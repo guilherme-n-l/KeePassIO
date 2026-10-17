@@ -40,11 +40,15 @@ final class AppModel {
     /// UI tests: on a slow simulator, XCUITest's wait for the app to
     /// settle after a tap can outlast a short confirmation.
     let confirmationDuration: Duration
+    /// UI tests that take App Store screenshots start from a demo database
+    /// (-UITestDemoData); see AppModel+Demo.swift.
+    let seedsDemoData: Bool
 
     init(launchArguments: [String] = ProcessInfo.processInfo.arguments) {
         let isUITest = launchArguments.contains("-UITest")
         picksLocationForNewDatabases = !isUITest
         confirmationDuration = isUITest ? .seconds(10) : .seconds(1.5)
+        seedsDemoData = isUITest && launchArguments.contains("-UITestDemoData")
         let fallbackURL = URL.applicationSupportDirectory.appendingPathComponent("AppState.json")
         store = (isUITest ? nil : AppStateStore.shared()) ?? AppStateStore(fileURL: fallbackURL)
         codec = KDBXCodec()
@@ -66,6 +70,9 @@ final class AppModel {
     func load() async {
         do {
             state = try await store.load()
+            if seedsDemoData, state.databases.isEmpty {
+                await seedDemoDatabase()
+            }
         } catch {
             errorMessage = String(
                 localized: "Couldn't read the app's settings. Defaults are used until you change them."
