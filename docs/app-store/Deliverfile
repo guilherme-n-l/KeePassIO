@@ -1,0 +1,19 @@
+# Settings for fastlane deliver, run from this folder by the App Store
+# workflow (.github/workflows/app-store.yml). The API key, the version and
+# what to upload are passed by the workflow.
+
+app_identifier "dev.guilhermenl.keepassio"
+platform "ios"
+
+metadata_path "./metadata"
+screenshots_path "./screenshots"
+overwrite_screenshots true
+
+# Only the listing: builds go up with scripts/release.sh, and submitting
+# for review is done by hand.
+skip_binary_upload true
+submit_for_review false
+run_precheck_before_submit false
+
+# No HTML preview to confirm in CI.
+force true

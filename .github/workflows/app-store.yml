@@ -63,21 +63,14 @@ jobs:
           VERSION: ${{ inputs.version }}
           SKIP_METADATA: ${{ !inputs.metadata }}
           SKIP_SCREENSHOTS: ${{ !inputs.screenshots }}
+        working-directory: docs/app-store
         run: |
+          # The other settings are in docs/app-store/Deliverfile.
           fastlane deliver \
             --api_key_path "$RUNNER_TEMP/asc-api-key.json" \
-            --app_identifier dev.guilhermenl.keepassio \
-            --platform ios \
             --app_version "$VERSION" \
-            --metadata_path docs/app-store/metadata \
-            --screenshots_path docs/app-store/screenshots \
             --skip_metadata "$SKIP_METADATA" \
-            --skip_screenshots "$SKIP_SCREENSHOTS" \
-            --overwrite_screenshots true \
-            --skip_binary_upload true \
-            --submit_for_review false \
-            --run_precheck_before_submit false \
-            --force true
+            --skip_screenshots "$SKIP_SCREENSHOTS"
 
       - name: Remove the API key
         if: always()
