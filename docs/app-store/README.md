@@ -1,5 +1,6 @@
 # App Store material
 
+- `Deliverfile`: fastlane deliver settings for the App Store workflow.
 - `metadata/`: the listing text (name, subtitle, promotional text,
   description, keywords, URLs, copyright, categories), one file per
   App Store Connect field, in fastlane deliver's layout.
