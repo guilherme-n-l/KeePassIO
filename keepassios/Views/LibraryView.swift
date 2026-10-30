@@ -182,14 +182,17 @@ struct LibraryView: View {
         }
         // On the stack itself, so screens pushed onto it see it too; set on
         // the library's root content, pushed group screens didn't.
-        .environment(\.goToDatabaseLevel) { level in
-            // The path is [database, group, group, ...] while a group is on
-            // screen, so level n is n + 1 items deep.
-            let extra = path.count - 1 - level
-            if extra > 0 {
-                path.removeLast(extra)
+        .environment(
+            \.goToDatabaseLevel,
+            GoToDatabaseLevelAction { level in
+                // The path is [database, group, group, ...] while a group is
+                // on screen, so level n is n + 1 items deep.
+                let extra = path.count - 1 - level
+                if extra > 0 {
+                    path.removeLast(extra)
+                }
             }
-        }
+        )
     }
 }
 
