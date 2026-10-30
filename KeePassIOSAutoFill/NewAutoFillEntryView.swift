@@ -11,6 +11,7 @@ struct NewAutoFillEntryView: View {
     @State private var userName = ""
     @State private var password = ""
     @State private var url = ""
+    @State private var groupID: UUID?
     @State private var isPasswordVisible = false
     @State private var isGenerating = false
     @State private var isSaving = false
@@ -49,6 +50,9 @@ struct NewAutoFillEntryView: View {
                     .keyboardType(.URL)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
+            }
+            Section {
+                groupRow
             } footer: {
                 if let errorMessage {
                     Text(errorMessage).foregroundStyle(.red)
@@ -86,6 +90,22 @@ struct NewAutoFillEntryView: View {
             let defaults = model.newEntryDefaults
             if title.isEmpty { title = defaults.title }
             if url.isEmpty { url = defaults.url }
+            if groupID == nil { groupID = model.defaultGroupID }
+        }
+    }
+
+    /// Where the entry is saved: any group except the recycle bin. The
+    /// last one used here is chosen to start with.
+    @ViewBuilder private var groupRow: some View {
+        let choices = model.groupChoices
+        if choices.count > 1 {
+            Picker("Group", selection: $groupID) {
+                ForEach(choices) { choice in
+                    Text(choice.path).tag(Optional(choice.id))
+                }
+            }
+            .pickerStyle(.navigationLink)
+            .accessibilityIdentifier("autofill.newEntry.group")
         }
     }
 
@@ -147,7 +167,13 @@ struct NewAutoFillEntryView: View {
         errorMessage = nil
         Task {
             do {
-                try await model.addEntry(title: title, userName: userName, password: password, url: url)
+                try await model.addEntry(
+                    title: title,
+                    userName: userName,
+                    password: password,
+                    url: url,
+                    groupID: groupID
+                )
                 dismiss()
             } catch {
                 errorMessage = String(localized: "Couldn't save the entry.")
