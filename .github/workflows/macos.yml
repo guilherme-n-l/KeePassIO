@@ -1,12 +1,43 @@
 name: macOS
 
+# Runs only when something the app build or its tests read changes;
+# documentation, scripts and the other workflows are checked by the Linux
+# workflow, which runs on every change. Keep this list in step with the
+# folders the Xcode project and KeePassCore package use.
+#
 # Branches are checked through their pull request; pushing to a branch
 # with an open pull request used to run every job twice, once for each
 # event.
 on:
   push:
     branches: [main]
+    paths:
+      - "keepassios/**"
+      - "KeePassIOSAutoFill/**"
+      - "keepassiosTests/**"
+      - "keepassiosUITests/**"
+      - "keepassios.xcodeproj/**"
+      - "Config/**"
+      - "Packages/**"
+      - "Vendor/**"
+      - ".swiftlint.yml"
+      - ".swift-format"
+      - "scripts/lint.sh"
+      - ".github/workflows/macos.yml"
   pull_request:
+    paths:
+      - "keepassios/**"
+      - "KeePassIOSAutoFill/**"
+      - "keepassiosTests/**"
+      - "keepassiosUITests/**"
+      - "keepassios.xcodeproj/**"
+      - "Config/**"
+      - "Packages/**"
+      - "Vendor/**"
+      - ".swiftlint.yml"
+      - ".swift-format"
+      - "scripts/lint.sh"
+      - ".github/workflows/macos.yml"
   workflow_dispatch:
 
 permissions:
@@ -79,7 +110,8 @@ jobs:
     name: Build a Release archive
     # What goes to the App Store: Release configuration (whole-module
     # optimization), for devices, app and AutoFill extension. Unsigned
-    # here; scripts/release.sh signs and uploads on the owner's Mac.
+    # here; scripts/release.sh signs and uploads, on the owner's Mac or
+    # from the TestFlight workflow.
     runs-on: macos-26
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

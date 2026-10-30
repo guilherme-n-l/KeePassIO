@@ -225,7 +225,7 @@ Linux CI enforces the core-only rows (KDF, parse, search, merge, serialize) thro
   - `macos.yml` on each PR: Xcode build of all targets, unit and UI tests, `XCTMetric` gates.
   - `nightly.yml`: long fuzz run, bpftrace profiling artifacts, `xctrace` traces, `cargo-deny` once Rust exists.
   - The repo is public, so standard GitHub-hosted runners (Linux and macOS) are free: both `linux.yml` and `macos.yml` run on every PR and push to `main`.
-  - **Public-repo safety:** CI never signs or needs secrets. App builds use the simulator with `CODE_SIGNING_ALLOWED=NO`, so PRs from forks run the full suite safely. Workflows use `pull_request` (never `pull_request_target`), least-privilege `permissions: contents: read`, and actions pinned by commit SHA. TestFlight uploads are done from the owner's Mac (Xcode Organizer) until a protected release workflow is worth adding.
+  - **Public-repo safety:** CI never signs or needs secrets. App builds use the simulator with `CODE_SIGNING_ALLOWED=NO`, so PRs from forks run the full suite safely. Workflows use `pull_request` (never `pull_request_target`), least-privilege `permissions: contents: read`, and actions pinned by commit SHA. TestFlight uploads come from the owner's Mac (`scripts/release.sh`) or from `testflight.yml`: started by hand by someone with write access, `main` only, in the `testflight` environment (where required reviewers can be set), with the App Store Connect API key as the only secret. No workflow triggered by a pull request ever sees it.
 - **Static checks:** SwiftLint, swift-format, dependency license check.
 
 ## 9. Decisions (resolved)
