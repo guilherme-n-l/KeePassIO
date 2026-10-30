@@ -33,6 +33,10 @@ struct AutoFillSettingsSection: View {
                     "Fill passwords and one-time codes in Safari and other apps. If the prompt doesn't appear, open Settings > General > AutoFill & Passwords and turn on KeePassIO."
                 )
                 .foregroundStyle(declined ? .orange : .secondary)
+            } else if setup.status == .on {
+                Text(
+                    "Where KeePassIO isn't suggested, such as a confirm-password or two-factor code field, touch and hold the field, then choose AutoFill > Passwords."
+                )
             }
         }
     }

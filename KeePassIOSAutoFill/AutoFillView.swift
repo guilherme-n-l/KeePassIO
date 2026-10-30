@@ -57,6 +57,24 @@ private struct EntryPickerView: View {
 
     var body: some View {
         List {
+            if query.isEmpty, let entry = model.justFilled {
+                Section {
+                    Button {
+                        model.insertPassword(of: entry)
+                    } label: {
+                        Label {
+                            EntryLabel(entry: entry)
+                        } icon: {
+                            Image(systemName: "key.fill")
+                        }
+                    }
+                    .accessibilityHint("Inserts this entry's password")
+                } header: {
+                    Text("Just Filled")
+                } footer: {
+                    Text("Inserts the same password, for a confirm-password field.")
+                }
+            }
             let suggestions = model.suggestions
             if query.isEmpty, !suggestions.isEmpty {
                 Section {
@@ -118,20 +136,63 @@ private struct EntryPickerView: View {
         }
     }
 
-    private func row(_ entry: Entry) -> some View {
-        Button {
-            model.choose(entry)
-        } label: {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(entry.title.isEmpty ? String(localized: "Untitled") : entry.title)
-                    .foregroundStyle(.primary)
-                if !entry.userName.isEmpty {
-                    Text(entry.userName)
-                        .font(.caption)
+    @ViewBuilder private func row(_ entry: Entry) -> some View {
+        if model.mode == .text {
+            NavigationLink {
+                InsertFieldView(entry: entry)
+            } label: {
+                EntryLabel(entry: entry)
+            }
+        } else {
+            Button {
+                model.choose(entry)
+            } label: {
+                EntryLabel(entry: entry)
+            }
+        }
+    }
+}
+
+private struct EntryLabel: View {
+    let entry: Entry
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(entry.title.isEmpty ? String(localized: "Untitled") : entry.title)
+                .foregroundStyle(.primary)
+            if !entry.userName.isEmpty {
+                Text(entry.userName)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+}
+
+/// The values of one entry, for a text insertion request: tap one to type
+/// it into the field. Secret values stay masked.
+private struct InsertFieldView: View {
+    @Environment(AutoFillModel.self) private var model
+    let entry: Entry
+
+    var body: some View {
+        List(model.insertableFields(of: entry)) { field in
+            Button {
+                model.insert(field)
+            } label: {
+                // The name keeps the button's accent color; the value is
+                // dimmed so it doesn't read as part of the button's title.
+                LabeledContent(field.name) {
+                    Text(field.isSecret ? String(repeating: "•", count: 8) : field.value)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
                         .foregroundStyle(.secondary)
                 }
             }
+            .accessibilityHint("Inserts this value")
         }
+        .navigationTitle(entry.title.isEmpty ? String(localized: "Untitled") : entry.title)
+        .navigationBarTitleDisplayMode(.inline)
     }
 }
 
