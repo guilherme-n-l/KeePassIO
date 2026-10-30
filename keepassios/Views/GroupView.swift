@@ -46,32 +46,37 @@ struct GroupView: View {
 
     var body: some View {
         ScrollView {
-            LazyVStack(alignment: .leading, spacing: 24) {
+            // The search bar sits outside the lazy stack: a lazy stack lays
+            // out a child's new size a pass late, so the field would only
+            // shrink after Cancel had already appeared over it.
+            VStack(alignment: .leading, spacing: 24) {
                 GroupSearchBar(query: $query, scope: $scope, showsScope: !isRoot)
-                if !query.isEmpty {
-                    searchResults
-                } else if let group {
-                    if !isRoot {
-                        Breadcrumbs(session: session, groupID: groupID) { items, target in
-                            move(items, into: target)
-                        }
-                    }
-                    if !group.groups.isEmpty {
-                        CardSection("Groups") {
-                            ForEach(group.groups) { child in
-                                groupRow(child)
+                LazyVStack(alignment: .leading, spacing: 24) {
+                    if !query.isEmpty {
+                        searchResults
+                    } else if let group {
+                        if !isRoot {
+                            Breadcrumbs(session: session, groupID: groupID) { items, target in
+                                move(items, into: target)
                             }
                         }
-                    }
-                    CardSection("Entries") {
-                        if group.entries.isEmpty {
-                            CardRow(showsChevron: false) {
-                                Text("No entries")
-                                    .foregroundStyle(.secondary)
+                        if !group.groups.isEmpty {
+                            CardSection("Groups") {
+                                ForEach(group.groups) { child in
+                                    groupRow(child)
+                                }
                             }
                         }
-                        ForEach(group.entries) { entry in
-                            entryRow(entry)
+                        CardSection("Entries") {
+                            if group.entries.isEmpty {
+                                CardRow(showsChevron: false) {
+                                    Text("No entries")
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                            ForEach(group.entries) { entry in
+                                entryRow(entry)
+                            }
                         }
                     }
                 }
