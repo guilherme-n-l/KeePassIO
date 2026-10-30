@@ -2,6 +2,7 @@ import KPAppState
 import KPMerge
 import KPModel
 import KPOTP
+import KPPlatform
 import KPSearch
 import KPSession
 import SwiftUI
