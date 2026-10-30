@@ -279,10 +279,10 @@ private struct AutoFillUnlockView: View {
         keyFileName = url.lastPathComponent
     }
 
+    /// The app's messages, except where AutoFill's limits call for
+    /// different advice.
     private static func message(for error: SessionError) -> String {
         switch error {
-        case .invalidKey:
-            String(localized: "The master password or key file is wrong.")
         case .keyDerivationTooExpensive:
             String(
                 localized:
@@ -291,7 +291,7 @@ private struct AutoFillUnlockView: View {
         case .file(.notFound), .file(.accessDenied):
             String(localized: "The database file can't be reached. Open it once in KeePassIO, then try again.")
         default:
-            String(localized: "The database couldn't be opened.")
+            error.userMessage
         }
     }
 }
