@@ -207,24 +207,13 @@ final class AutoFillModel {
     }
 
     /// Every group of the open database except the recycle bin, in tree
-    /// order, the top level first under the database's name.
+    /// order, named by path; the top level goes by the database's name.
     var groupChoices: [GroupChoice] {
         guard let database = session?.database else { return [] }
         let top = database.meta.name.isEmpty ? database.root.name : database.meta.name
-        var names: [UUID: String] = [:]
-        var result: [GroupChoice] = []
-        database.root.forEachGroup { group, path in
-            if let bin = database.meta.recycleBinID, path.contains(bin) { return }
-            let name: String
-            switch path.dropLast().last {
-            case nil: name = top
-            case database.root.id: name = group.name
-            case let parentID?: name = "\(names[parentID] ?? "") / \(group.name)"
-            }
-            names[group.id] = name
-            result.append(GroupChoice(id: group.id, path: name))
+        return database.activeGroupPaths.map { group in
+            GroupChoice(id: group.id, path: group.names.isEmpty ? top : group.names.joined(separator: " / "))
         }
-        return result
     }
 
     private static let lastGroupKey = "lastNewEntryGroup"

@@ -102,6 +102,29 @@ extension Database {
         meta.recycleBinID.flatMap { group(withID: $0) }
     }
 
+    /// A group and the names of the groups leading to it from the top
+    /// level: [] for the top level itself, ["Work", "Email"] for Email
+    /// inside Work.
+    public struct GroupPath: Sendable, Equatable, Identifiable {
+        public let id: UUID
+        public let names: [String]
+    }
+
+    /// Every group except the recycle bin and what's in it, in tree order,
+    /// for choosing where an item goes.
+    public var activeGroupPaths: [GroupPath] {
+        var names: [UUID: [String]] = [:]
+        var result: [GroupPath] = []
+        root.forEachGroup { group, path in
+            if let bin = meta.recycleBinID, path.contains(bin) { return }
+            let parentNames = path.dropLast().last.flatMap { names[$0] }
+            let own = parentNames.map { $0 + [group.name] } ?? []
+            names[group.id] = own
+            result.append(GroupPath(id: group.id, names: own))
+        }
+        return result
+    }
+
     // MARK: Entries
 
     /// Adds `entry` to the group with `groupID`.

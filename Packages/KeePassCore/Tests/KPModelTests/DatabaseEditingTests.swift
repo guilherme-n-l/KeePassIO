@@ -183,3 +183,43 @@ struct SecretStringTests {
         #expect(SecretString.empty.isEmpty)
     }
 }
+
+struct GroupPathTests {
+    /// Every group outside the recycle bin, in tree order, named by the
+    /// groups leading to it, so nested groups with the same name stay
+    /// distinguishable.
+    @Test func listsNestedGroupsByPathAndSkipsTheRecycleBin() throws {
+        var database = Database.empty(name: "Test")
+        let root = database.root.id
+        let work = Group(name: "Work")
+        let workEmail = Group(name: "Email")
+        let archive = Group(name: "Archive")
+        let shopping = Group(name: "Shopping")
+        let shoppingEmail = Group(name: "Email")
+        let old = Group(name: "Old")
+        let inner = Group(name: "Inner")
+        try database.add(work, to: root)
+        try database.add(workEmail, to: work.id)
+        try database.add(archive, to: workEmail.id)
+        try database.add(shopping, to: root)
+        try database.add(shoppingEmail, to: shopping.id)
+        try database.add(old, to: root)
+        try database.add(inner, to: old.id)
+        try database.deleteGroup(old.id, at: Date())
+        let binID = try #require(database.meta.recycleBinID)
+
+        let paths = database.activeGroupPaths
+        #expect(
+            paths.map(\.names) == [
+                [],
+                ["Work"],
+                ["Work", "Email"],
+                ["Work", "Email", "Archive"],
+                ["Shopping"],
+                ["Shopping", "Email"],
+            ]
+        )
+        #expect(paths.map(\.id) == [root, work.id, workEmail.id, archive.id, shopping.id, shoppingEmail.id])
+        #expect(!paths.contains { [binID, old.id, inner.id].contains($0.id) })
+    }
+}
