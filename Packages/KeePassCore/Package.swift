@@ -32,6 +32,7 @@ let package = Package(
         .package(url: "https://github.com/apple/swift-argument-parser.git", exact: "1.8.2"),
         .package(url: "https://github.com/apple/swift-crypto.git", exact: "3.15.1"),
         .package(path: "../../Vendor/KDBXKit"),
+        .package(url: "https://github.com/ameshkov/swift-psl.git", exact: "1.1.130"),
     ],
     targets: [
         .target(name: "KPObservability"),
@@ -49,7 +50,13 @@ let package = Package(
         .testTarget(name: "KPModelTests", dependencies: ["KPModel"]),
         .target(name: "KPMerge", dependencies: ["KPModel", "KPObservability"]),
         .testTarget(name: "KPMergeTests", dependencies: ["KPMerge", "KPModel"]),
-        .target(name: "KPSearch", dependencies: ["KPModel", "KPObservability"]),
+        .target(
+            name: "KPSearch",
+            dependencies: [
+                "KPModel", "KPObservability",
+                .product(name: "PublicSuffixList", package: "swift-psl"),
+            ]
+        ),
         .testTarget(name: "KPSearchTests", dependencies: ["KPSearch", "KPModel"]),
         .target(
             name: "KPSession",

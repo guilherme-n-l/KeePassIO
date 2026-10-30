@@ -277,6 +277,7 @@ Linux CI enforces the core-only rows (KDF, parse, search, merge, serialize) thro
 | TOTP | about 100 lines on CryptoKit HMAC (libraries exist but are tiny and not worth a dependency) | Yes, trivial |
 | Files access, atomic save | `fileImporter`, bookmarks, `NSFileCoordinator`, `FileManager.replaceItemAt` | No |
 | Testing, fuzzing | swift-testing, libFuzzer via SwiftPM, [SwiftCheck](https://github.com/typelift/SwiftCheck) | No |
+| Website matching for AutoFill (which hosts share an owner) | [swift-psl](https://github.com/ameshkov/swift-psl) (MIT; Public Suffix List data, updated with each release) | No |
 | CSV import | [swift-csv](https://github.com/swiftcsv/SwiftCSV) (MIT) | Mapping only |
 | **Merge engine** | Nothing usable exists | **Yes: core differentiator** |
 | **Merge review UI, quick-create flows, diagnostics** | SwiftUI | Yes (product code) |

@@ -178,6 +178,41 @@ struct URLMatcherTests {
         #expect(URLMatcher.matches(for: "not a url", in: database).isEmpty)
         #expect(URLMatcher.registrableDomain("a.b.example.com") == "example.com")
     }
+
+    /// Sites on shared hosting suffixes belong to different owners, so one
+    /// must never be offered another's login.
+    @Test func sharedHostingSitesAreSeparate() throws {
+        var database = Database.empty(name: "Test")
+        var alice = Entry()
+        alice.url = "https://alice.github.io"
+        try database.add(alice, to: database.root.id)
+        #expect(URLMatcher.matches(for: "https://mallory.github.io", in: database).isEmpty)
+        #expect(URLMatcher.matches(for: "https://alice.github.io/blog", in: database).map(\.entryID) == [alice.id])
+        #expect(URLMatcher.registrableDomain("alice.github.io") == "alice.github.io")
+        #expect(URLMatcher.registrableDomain("app.vercel.app") == "app.vercel.app")
+    }
+
+    @Test func registrableDomainFollowsThePublicSuffixList() {
+        #expect(URLMatcher.registrableDomain("shop.example.co.uk") == "example.co.uk")
+        #expect(URLMatcher.registrableDomain("www.example.com.br") == "example.com.br")
+        #expect(URLMatcher.registrableDomain("a.example.gov.br") == "example.gov.br")
+        #expect(URLMatcher.registrableDomain("login.city.kawasaki.jp") == "city.kawasaki.jp")
+        #expect(URLMatcher.registrableDomain("example.com") == "example.com")
+        #expect(URLMatcher.registrableDomain("co.uk") == "co.uk")
+        #expect(URLMatcher.registrableDomain("localhost") == "localhost")
+    }
+
+    /// Two devices on a network share no "domain": a router's login must
+    /// not be offered for another address.
+    @Test func ipAddressesOnlyMatchThemselves() throws {
+        #expect(URLMatcher.registrableDomain("192.168.1.1") == "192.168.1.1")
+        #expect(URLMatcher.registrableDomain("[::1]") == "[::1]")
+        var database = Database.empty(name: "Test")
+        var router = Entry()
+        router.url = "http://192.168.1.1"
+        try database.add(router, to: database.root.id)
+        #expect(URLMatcher.matches(for: "http://10.0.1.1", in: database).isEmpty)
+    }
 }
 
 struct PasswordAuditTests {

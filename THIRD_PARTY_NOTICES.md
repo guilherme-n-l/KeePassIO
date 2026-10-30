@@ -35,6 +35,8 @@ KeePassXC's C64 (Apple logo) is GPL-2.0-or-later and is not included; that icon 
 | [swift-argument-parser](https://github.com/apple/swift-argument-parser) | Apache-2.0 | `kpbench` command-line interface |
 | [swift-crypto](https://github.com/apple/swift-crypto) | Apache-2.0 | Cryptography (CryptoKit's API on every platform) |
 | [swift-log](https://github.com/apple/swift-log) | Apache-2.0 | Logging inside KDBXKit |
+| [swift-psl](https://github.com/ameshkov/swift-psl) | MIT | The Public Suffix List, to tell which websites share an owner for AutoFill matching (the list's data is MPL-2.0, from [publicsuffix.org](https://publicsuffix.org)) |
+| [PunycodeSwift](https://github.com/gumob/PunycodeSwift) | MIT | Build-time dependency of swift-psl's resource builder; not linked into the app |
 
 ## Development-only
 
