@@ -200,14 +200,71 @@ final class AutoFillModel {
         }
     }
 
-    /// Adds an entry and saves the database. When filling a password, the
-    /// new entry is filled right away.
-    func addEntry(title: String, userName: String, password: String, url: String) async throws(SessionError) {
+    /// A group a new entry can go to, named by its path.
+    struct GroupChoice: Identifiable, Hashable {
+        let id: UUID
+        let path: String
+    }
+
+    /// Every group of the open database except the recycle bin, in tree
+    /// order, the top level first under the database's name.
+    var groupChoices: [GroupChoice] {
+        guard let database = session?.database else { return [] }
+        let top = database.meta.name.isEmpty ? database.root.name : database.meta.name
+        var names: [UUID: String] = [:]
+        var result: [GroupChoice] = []
+        database.root.forEachGroup { group, path in
+            if let bin = database.meta.recycleBinID, path.contains(bin) { return }
+            let name: String
+            switch path.dropLast().last {
+            case nil: name = top
+            case database.root.id: name = group.name
+            case let parentID?: name = "\(names[parentID] ?? "") / \(group.name)"
+            }
+            names[group.id] = name
+            result.append(GroupChoice(id: group.id, path: name))
+        }
+        return result
+    }
+
+    private static let lastGroupKey = "lastNewEntryGroup"
+
+    /// The group the last entry made here for this database went to, if
+    /// it still exists, otherwise the top level.
+    var defaultGroupID: UUID? {
+        guard let database = session?.database, let databaseID = selected?.id else { return nil }
+        let saved = UserDefaults.standard.dictionary(forKey: Self.lastGroupKey)?[databaseID.uuidString] as? String
+        if let id = saved.flatMap(UUID.init(uuidString:)), groupChoices.contains(where: { $0.id == id }) {
+            return id
+        }
+        return database.root.id
+    }
+
+    private func rememberGroup(_ groupID: UUID) {
+        guard let databaseID = selected?.id else { return }
+        var saved = UserDefaults.standard.dictionary(forKey: Self.lastGroupKey) ?? [:]
+        saved[databaseID.uuidString] = groupID.uuidString
+        UserDefaults.standard.set(saved, forKey: Self.lastGroupKey)
+    }
+
+    /// Adds an entry to `groupID` (the top level when nil) and saves the
+    /// database. When filling a password, the new entry is filled right
+    /// away.
+    func addEntry(
+        title: String,
+        userName: String,
+        password: String,
+        url: String,
+        groupID: UUID?
+    ) async throws(SessionError) {
         guard let session else { throw .locked }
         var entry = session.newEntry(title: title, userName: userName, password: SecretString(password))
         entry.url = url
-        try session.addEntry(entry)
+        try session.addEntry(entry, to: groupID)
         try await session.save()
+        if let groupID {
+            rememberGroup(groupID)
+        }
         if mode == .password {
             choose(entry)
         }
