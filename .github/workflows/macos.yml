@@ -1,8 +1,11 @@
 name: macOS
 
+# Branches are checked through their pull request; pushing to a branch
+# with an open pull request used to run every job twice, once for each
+# event.
 on:
   push:
-    branches: [main, "claude/**"]
+    branches: [main]
   pull_request:
   workflow_dispatch:
 
