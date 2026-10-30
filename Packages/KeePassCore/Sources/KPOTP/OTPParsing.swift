@@ -62,16 +62,16 @@ extension OTP {
     ///
     /// Returns nil when the entry has no OTP fields.
     public init?(fields: [String: String]) throws(OTPError) {
-        if let uri = fields["otp"], !uri.isEmpty {
+        if let uri = fields[FieldName.uri], !uri.isEmpty {
             try self.init(uri: uri)
             return
         }
-        guard let seed = fields["TOTP Seed"], !seed.isEmpty else { return nil }
+        guard let seed = fields[FieldName.seed], !seed.isEmpty else { return nil }
         guard let secret = Base32.decode(seed), !secret.isEmpty else { throw .invalidSecret }
 
         var period = 30
         var kind = Kind.totp(digits: 6)
-        if let settings = fields["TOTP Settings"], !settings.isEmpty {
+        if let settings = fields[FieldName.settings], !settings.isEmpty {
             let parts = settings.split(separator: ";").map { $0.trimmingCharacters(in: .whitespaces) }
             if let first = parts.first {
                 guard let value = Int(first) else { throw .invalidPeriod(0) }
@@ -145,5 +145,23 @@ extension OTP {
         guard let text else { return defaultValue }
         guard let value = Int(text) else { throw error(0) }
         return value
+    }
+}
+
+extension OTP {
+    /// The custom fields KeePass clients keep OTP settings in.
+    public enum FieldName {
+        /// An otpauth URI (KeePassXC 2.6 and later, KeePassDX).
+        public static let uri = "otp"
+        /// A Base32 secret (older KeePassXC and KeeOtp).
+        public static let seed = "TOTP Seed"
+        /// The period and digits for `seed`, such as `30;6`.
+        public static let settings = "TOTP Settings"
+    }
+
+    /// Whether a custom field holds OTP settings rather than the user's
+    /// own data, so it is shown as a code instead of a field.
+    public static func isSettingsField(_ name: String) -> Bool {
+        name == FieldName.uri || name.hasPrefix("TOTP ")
     }
 }

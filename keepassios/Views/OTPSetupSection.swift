@@ -69,9 +69,9 @@ final class OTPSetup {
     /// "TOTP Seed" / "TOTP Settings" fields so there's one source of truth.
     func setURI(_ uri: String?, in entry: Binding<Entry>) {
         message = nil
-        entry.wrappedValue.fields["TOTP Seed"] = nil
-        entry.wrappedValue.fields["TOTP Settings"] = nil
-        entry.wrappedValue.fields["otp"] = uri.map { .protected(SecretString($0)) }
+        entry.wrappedValue.fields[OTP.FieldName.seed] = nil
+        entry.wrappedValue.fields[OTP.FieldName.settings] = nil
+        entry.wrappedValue.fields[OTP.FieldName.uri] = uri.map { .protected(SecretString($0)) }
     }
 }
 
