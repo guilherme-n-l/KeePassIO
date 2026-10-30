@@ -1,5 +1,6 @@
 import Foundation
 import KPModel
+import PublicSuffixList
 
 /// Finds entries for a website, as AutoFill does.
 public enum URLMatcher {
@@ -58,16 +59,17 @@ public enum URLMatcher {
         return trimmed.hasSuffix("/") ? String(trimmed.dropLast()) : trimmed
     }
 
-    /// The last two labels of the host, or three when the second-to-last
-    /// is a common second-level suffix (example.co.uk). An approximation
-    /// of the public suffix list, good enough for ranking matches; exact
-    /// host matches always rank higher.
+    /// The part of the host one owner registered, from the Public Suffix
+    /// List: example.co.uk for shop.example.co.uk, and alice.github.io for
+    /// itself, since every github.io site belongs to someone else. IP
+    /// addresses and hosts that are themselves a public suffix stand alone.
     static func registrableDomain(_ host: String) -> String {
-        let labels = host.split(separator: ".")
-        guard labels.count > 2 else { return host }
-        let secondLevel: Set<Substring> = ["co", "com", "net", "org", "gov", "edu", "ac", "or", "ne", "go"]
-        let count = secondLevel.contains(labels[labels.count - 2]) && labels.last?.count == 2 ? 3 : 2
-        return labels.suffix(count).joined(separator: ".")
+        if isIPAddress(host) { return host }
+        return PublicSuffixList.effectiveTLDPlusOne(host) ?? host
+    }
+
+    private static func isIPAddress(_ host: String) -> Bool {
+        host.contains(":") || host.split(separator: ".").allSatisfy { $0.allSatisfy(\.isNumber) }
     }
 }
 
