@@ -16,11 +16,16 @@ final class AutoFillModel {
     enum Mode {
         case password
         case oneTimeCode
+        /// Any field, from the AutoFill menu of a text field iOS doesn't
+        /// recognize as a login (a confirm-password or an unlabeled code
+        /// field): the user picks an entry, then which of its values to type.
+        case text
     }
 
     enum Completion {
         case password(user: String, password: String)
         case oneTimeCode(String)
+        case text(String)
         case cancelled
     }
 
@@ -138,7 +143,43 @@ final class AutoFillModel {
         switch mode {
         case .password: !entry.password.isEmpty || !entry.userName.isEmpty
         case .oneTimeCode: Self.otp(of: entry) != nil
+        case .text: !insertableFields(of: entry).isEmpty
         }
+    }
+
+    /// A value of an entry the user can insert as text.
+    struct InsertableField: Identifiable {
+        let name: String
+        let value: String
+        let isSecret: Bool
+        var id: String { name }
+    }
+
+    /// The entry's non-empty values, standard fields first, with the
+    /// current one-time code after the password.
+    func insertableFields(of entry: Entry) -> [InsertableField] {
+        var result: [InsertableField] = []
+        func add(_ name: String, _ value: String, secret: Bool) {
+            if !value.isEmpty { result.append(InsertableField(name: name, value: value, isSecret: secret)) }
+        }
+        add(String(localized: "User Name"), entry.userName, secret: false)
+        add(String(localized: "Password"), entry.password.reveal(), secret: true)
+        if let otp = Self.otp(of: entry) {
+            add(String(localized: "One-Time Code"), otp.code(at: Date()), secret: false)
+        }
+        add(String(localized: "Website"), entry.url, secret: false)
+        // The one-time code's secret fields are offered as the code above.
+        for name in entry.customFieldNames where name != "otp" && !name.hasPrefix("TOTP ") {
+            if let field = entry.fields[name] {
+                add(name, field.reveal(), secret: field.isProtected)
+            }
+        }
+        return result
+    }
+
+    /// Answers a text insertion request with one of an entry's values.
+    func insert(_ field: InsertableField) {
+        finish(.text(field.value))
     }
 
     private static func otp(of entry: Entry) -> OTP? {
@@ -153,6 +194,9 @@ final class AutoFillModel {
         case .oneTimeCode:
             guard let otp = Self.otp(of: entry) else { return }
             completion = .oneTimeCode(otp.code(at: Date()))
+        case .text:
+            // Text requests pick a field first; see `insert(_:)`.
+            return
         }
         finish(completion)
     }
