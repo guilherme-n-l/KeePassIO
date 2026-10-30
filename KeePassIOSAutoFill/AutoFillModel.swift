@@ -182,6 +182,42 @@ final class AutoFillModel {
         finish(.text(field.value))
     }
 
+    /// How long after a password fill its entry is offered first for a
+    /// text insertion.
+    private static let justFilledWindow: TimeInterval = 5 * 60
+    private static let justFilledKey = "justFilled"
+
+    /// iOS fills a password into one field only, so a sign-up form's
+    /// confirm-password field stays empty. The user then opens the field's
+    /// AutoFill > Passwords menu; remembering which entry was just filled
+    /// (its ID, never its values) lets the picker offer that password first.
+    private func rememberFilled(_ entry: Entry) {
+        guard let databaseID = selected?.id else { return }
+        UserDefaults.standard.set(
+            [databaseID.uuidString, entry.id.uuidString, String(Date().timeIntervalSince1970)],
+            forKey: Self.justFilledKey
+        )
+    }
+
+    /// The entry whose password was filled in the last few minutes, from
+    /// the open database.
+    var justFilled: Entry? {
+        guard mode == .text, let database = session?.database,
+            let saved = UserDefaults.standard.stringArray(forKey: Self.justFilledKey), saved.count == 3,
+            saved[0] == selected?.id.uuidString,
+            let entryID = UUID(uuidString: saved[1]),
+            let time = TimeInterval(saved[2]),
+            Date().timeIntervalSince1970 - time < Self.justFilledWindow
+        else { return nil }
+        return database.entry(withID: entryID).flatMap { $0.password.isEmpty ? nil : $0 }
+    }
+
+    /// Inserts the password of the entry just filled, for its
+    /// confirm-password field.
+    func insertPassword(of entry: Entry) {
+        finish(.text(entry.password.reveal()))
+    }
+
     private static func otp(of entry: Entry) -> OTP? {
         try? OTP(fields: entry.fields.mapValues { $0.reveal() })
     }
@@ -190,6 +226,7 @@ final class AutoFillModel {
         let completion: Completion
         switch mode {
         case .password:
+            rememberFilled(entry)
             completion = .password(user: entry.userName, password: entry.password.reveal())
         case .oneTimeCode:
             guard let otp = Self.otp(of: entry) else { return }

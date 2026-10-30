@@ -57,6 +57,24 @@ private struct EntryPickerView: View {
 
     var body: some View {
         List {
+            if query.isEmpty, let entry = model.justFilled {
+                Section {
+                    Button {
+                        model.insertPassword(of: entry)
+                    } label: {
+                        Label {
+                            EntryLabel(entry: entry)
+                        } icon: {
+                            Image(systemName: "key.fill")
+                        }
+                    }
+                    .accessibilityHint("Inserts this entry's password")
+                } header: {
+                    Text("Just Filled")
+                } footer: {
+                    Text("Inserts the same password, for a confirm-password field.")
+                }
+            }
             let suggestions = model.suggestions
             if query.isEmpty, !suggestions.isEmpty {
                 Section {
