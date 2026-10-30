@@ -1,0 +1,66 @@
+name: TestFlight
+
+# Archives a Release build of main and uploads it to App Store Connect,
+# where it shows up in TestFlight after processing (usually 10-30
+# minutes). Run by hand from the Actions tab; it never submits for review.
+# It runs scripts/release.sh, the same script used on the owner's Mac, so
+# the build number is the commit count of main.
+#
+# Signing is cloud-managed by Xcode (automatic signing with
+# -allowProvisioningUpdates), authenticated with the App Store Connect API
+# key the App Store workflow uses:
+#   ASC_KEY_ID      the key's ID
+#   ASC_ISSUER_ID   the issuer ID shown above the keys
+#   ASC_API_KEY     the contents of the downloaded AuthKey_<ID>.p8
+# Cloud-managed distribution signing needs a key with the Admin role.
+#
+# Only people with write access can start it, it only runs on main, and
+# the job uses the "testflight" environment, so required reviewers can be
+# added under Settings > Environments to approve each upload.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: testflight
+  cancel-in-progress: false
+
+jobs:
+  upload:
+    name: Upload a build to TestFlight
+    if: github.ref == 'refs/heads/main'
+    runs-on: macos-26
+    environment: testflight
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The build number is the commit count, which needs all of history.
+          fetch-depth: 0
+
+      - name: Write the API key
+        env:
+          ASC_API_KEY: ${{ secrets.ASC_API_KEY }}
+        run: |
+          umask 077
+          printf '%s\n' "$ASC_API_KEY" >"$RUNNER_TEMP/AuthKey.p8"
+
+      - name: Archive and upload
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+        run: ASC_KEY_PATH="$RUNNER_TEMP/AuthKey.p8" scripts/release.sh
+
+      - name: Remove the API key
+        if: always()
+        run: rm -f "$RUNNER_TEMP/AuthKey.p8"
+
+      - name: Upload the logs
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: testflight-logs
+          path: build/release-*/*.log
+          if-no-files-found: ignore
