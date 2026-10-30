@@ -169,3 +169,19 @@ struct Base32Tests {
         #expect(Base32.decode("MZXW1") == nil)
     }
 }
+
+struct OTPFieldNameTests {
+    @Test func namesMatchTheKeePassFormats() {
+        #expect(OTP.FieldName.uri == "otp")
+        #expect(OTP.FieldName.seed == "TOTP Seed")
+        #expect(OTP.FieldName.settings == "TOTP Settings")
+    }
+
+    @Test func recognizesSettingsFields() {
+        #expect(OTP.isSettingsField("otp"))
+        #expect(OTP.isSettingsField("TOTP Seed"))
+        #expect(OTP.isSettingsField("TOTP Settings"))
+        #expect(!OTP.isSettingsField("otp backup codes"))
+        #expect(!OTP.isSettingsField("Recovery"))
+    }
+}

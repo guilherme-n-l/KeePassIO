@@ -33,7 +33,7 @@ struct EntryDetailView: View {
                     }
                     if let otp = try? OTP(fields: entry.fields.mapValues { $0.reveal() }) {
                         OTPRow(otp: otp) { code in
-                            copy(code, field: "otp", sensitive: true)
+                            copy(code, field: OTP.FieldName.uri, sensitive: true)
                         }
                     }
                 }
@@ -125,7 +125,7 @@ struct EntryDetailView: View {
     /// Custom fields shown in the Fields section; OTP settings are shown
     /// as a code instead.
     static func displayedCustomFields(of entry: Entry) -> [String] {
-        entry.customFieldNames.filter { $0 != "otp" && !$0.hasPrefix("TOTP ") }
+        entry.customFieldNames.filter { !OTP.isSettingsField($0) }
     }
 
     private func field(_ key: String, label: LocalizedStringKey, value: String, sensitive: Bool) -> some View {

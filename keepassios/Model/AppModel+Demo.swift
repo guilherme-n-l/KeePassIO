@@ -129,7 +129,7 @@ extension AppModel {
         entry.iconID = demo.icon
         if demo.hasCode {
             let otp = try OTP(base32Secret: "JBSWY3DPEHPK3PXP", issuer: demo.title, account: demo.userName)
-            entry.fields["otp"] = .protected(SecretString(otp.uri))
+            entry.fields[OTP.FieldName.uri] = .protected(SecretString(otp.uri))
         }
         return entry
     }
