@@ -162,12 +162,14 @@ private struct InsertFieldView: View {
             Button {
                 model.insert(field)
             } label: {
+                // The name keeps the button's accent color; the value is
+                // dimmed so it doesn't read as part of the button's title.
                 LabeledContent(field.name) {
                     Text(field.isSecret ? String(repeating: "•", count: 8) : field.value)
                         .lineLimit(1)
                         .truncationMode(.middle)
+                        .foregroundStyle(.secondary)
                 }
-                .foregroundStyle(.primary)
             }
             .accessibilityHint("Inserts this value")
         }
