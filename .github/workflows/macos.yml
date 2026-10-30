@@ -4,9 +4,13 @@ name: macOS
 # documentation, scripts and the other workflows are checked by the Linux
 # workflow, which runs on every change. Keep this list in step with the
 # folders the Xcode project and KeePassCore package use.
+#
+# Branches are checked through their pull request; pushing to a branch
+# with an open pull request used to run every job twice, once for each
+# event.
 on:
   push:
-    branches: [main, "claude/**"]
+    branches: [main]
     paths:
       - "keepassios/**"
       - "KeePassIOSAutoFill/**"
