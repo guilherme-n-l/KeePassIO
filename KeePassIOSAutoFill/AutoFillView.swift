@@ -235,10 +235,16 @@ private struct AutoFillUnlockView: View {
     private func unlock() {
         message = nil
         let key = CompositeKey(password: password.isEmpty ? nil : SecretString(password), keyFileData: keyFileData)
+        let (reference, validity) = (reference, model.quickUnlockValiditySeconds)
         Task {
             await session.unlock(with: key)
             if case .failed(let error) = session.state {
                 message = Self.message(for: error)
+            } else if session.state == .unlocked, reference.quickUnlockEnabled {
+                // Face ID is on for this database but its key expired or
+                // was removed: store it again, as the app does, so Face ID
+                // works again here and in the app without a trip to the app.
+                try? QuickUnlock.store(key, for: reference.id, validFor: validity)
             }
         }
     }
@@ -251,10 +257,21 @@ private struct AutoFillUnlockView: View {
             )
             await session.unlock(with: key)
             if case .failed(let error) = session.state {
+                if error == .invalidKey {
+                    // The master key changed since Face ID was set up.
+                    QuickUnlock.remove(for: reference.id)
+                    canQuickUnlock = false
+                }
                 message = Self.message(for: error)
                 passwordFocused = true
             }
+        } catch QuickUnlock.Failure.cancelled {
+            passwordFocused = true
         } catch {
+            // Expired or removed. Unlocking with the password stores the
+            // key again (see `unlock()`).
+            canQuickUnlock = false
+            message = String(localized: "Enter the master password to use \(QuickUnlock.biometryName) again.")
             passwordFocused = true
         }
     }

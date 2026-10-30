@@ -246,10 +246,15 @@ struct UnlockView: View {
         do {
             let key = try await QuickUnlock.retrieve(for: reference.id, reason: reason)
             await session.unlock(with: key)
-            if case .failed = session.state {
-                // The stored key no longer works (the master key changed).
-                QuickUnlock.remove(for: reference.id)
-                canQuickUnlock = false
+            if case .failed(let error) = session.state {
+                // Forget the stored key only when it is wrong (the master
+                // key changed). A file that can't be reached right now or
+                // any other failure says nothing about the key, and
+                // removing it there meant setting up Face ID again.
+                if error == .invalidKey {
+                    QuickUnlock.remove(for: reference.id)
+                    canQuickUnlock = false
+                }
                 passwordFocused = true
             }
         } catch QuickUnlock.Failure.cancelled {

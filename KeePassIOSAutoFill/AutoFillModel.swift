@@ -39,6 +39,9 @@ final class AutoFillModel {
     private(set) var generatorSettings = GeneratorSettings()
     /// The accent color chosen in the app.
     private(set) var accentColor: String?
+    /// How long a Face ID key stays valid after the master password is
+    /// entered, as set in the app.
+    private(set) var quickUnlockValiditySeconds = KPAppState.Settings().quickUnlockValiditySeconds
     /// Set once the request is answered, so the sheet doesn't show the
     /// unlock screen (and offer Face ID) while it closes.
     private(set) var isFinished = false
@@ -68,6 +71,7 @@ final class AutoFillModel {
             databases = state.databases
             generatorSettings = state.settings.generator
             accentColor = state.settings.accentColor
+            quickUnlockValiditySeconds = state.settings.quickUnlockValiditySeconds
             let preferred = state.settings.quickCreateDatabaseID
             if let reference = databases.first(where: { $0.id == preferred }) ?? databases.first {
                 select(reference)
