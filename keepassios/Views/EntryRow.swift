@@ -33,9 +33,13 @@ struct GroupSearchBar: View {
     let showsScope: Bool
     @FocusState private var isFocused: Bool
 
+    /// Searching shows Cancel and, in subgroups, the scope switch. One
+    /// value drives both so they animate together with the field.
+    private var isActive: Bool { isFocused || !query.isEmpty }
+
     var body: some View {
         VStack(spacing: 8) {
-            HStack(spacing: 8) {
+            HStack(spacing: 0) {
                 HStack(spacing: 6) {
                     Image(systemName: "magnifyingglass")
                         .foregroundStyle(.secondary)
@@ -60,15 +64,23 @@ struct GroupSearchBar: View {
                 .padding(.horizontal, 12)
                 .frame(minHeight: 40)
                 .background(Color(uiColor: .tertiarySystemFill), in: Capsule())
-                if isFocused || !query.isEmpty {
-                    Button("Cancel") {
-                        query = ""
-                        isFocused = false
-                    }
-                    .transition(.move(edge: .trailing).combined(with: .opacity))
+                // Always in the row, at zero width while not searching. Its
+                // width animates with the field's, so its leading edge
+                // follows the field's trailing edge as the field shrinks,
+                // like the system search bar, instead of appearing on top.
+                Button("Cancel") {
+                    query = ""
+                    isFocused = false
                 }
+                .fixedSize()
+                .padding(.leading, 8)
+                .frame(width: isActive ? nil : 0, alignment: .leading)
+                .clipped()
+                .opacity(isActive ? 1 : 0)
+                .allowsHitTesting(isActive)
+                .accessibilityHidden(!isActive)
             }
-            if showsScope, isFocused || !query.isEmpty {
+            if showsScope, isActive {
                 Picker("Search In", selection: $scope) {
                     Text("This Group").tag(SearchScope.group)
                     Text("All Groups").tag(SearchScope.database)
@@ -77,8 +89,7 @@ struct GroupSearchBar: View {
                 .transition(.opacity)
             }
         }
-        .animation(.snappy, value: isFocused)
-        .animation(.snappy, value: query.isEmpty)
+        .animation(.snappy, value: isActive)
     }
 }
 
