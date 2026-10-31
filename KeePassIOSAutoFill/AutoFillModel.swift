@@ -246,10 +246,13 @@ final class AutoFillModel {
         finish(.cancelled)
     }
 
+    /// Answers the request first, then locks: locking changes what the
+    /// sheet shows, and nothing should change on screen before iOS has the
+    /// answer.
     private func finish(_ completion: Completion) {
         isFinished = true
-        session?.lock()
         complete(completion)
+        session?.lock()
     }
 
     /// The site being filled, for a new entry's title and URL. The URL

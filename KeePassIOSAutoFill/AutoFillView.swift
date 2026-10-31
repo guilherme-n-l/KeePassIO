@@ -8,6 +8,12 @@ import UniformTypeIdentifiers
 /// The AutoFill sheet: unlock a database, then pick an entry.
 struct AutoFillView: View {
     @Environment(AutoFillModel.self) private var model
+    /// Whether the entry picker's stack is on screen. Decided only while
+    /// the request is open: answering it locks the database, and swapping
+    /// the whole navigation stack (with a pushed screen and maybe an active
+    /// search) at the moment the sheet is handed back could leave the sheet
+    /// stuck on screen. It keeps showing what it showed until it closes.
+    @State private var isPicking = false
 
     var body: some View {
         SwiftUI.Group {
@@ -25,11 +31,16 @@ struct AutoFillView: View {
             }
         }
         .tint(AccentColors.color(model.accentColor))
+        .onChange(of: isUnlocked, initial: true) { _, unlocked in
+            if !model.isFinished {
+                isPicking = unlocked
+            }
+        }
     }
 
-    /// A database is unlocked and the request is still open: show entries.
-    private var isPicking: Bool {
-        !model.isFinished && model.loadError == nil && model.selected != nil && model.session?.state == .unlocked
+    /// A database is open and unlocked: the picker should show.
+    private var isUnlocked: Bool {
+        model.loadError == nil && model.selected != nil && model.session?.state == .unlocked
     }
 
     @ViewBuilder private var content: some View {
