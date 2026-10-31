@@ -27,6 +27,13 @@ enum SearchScope: Hashable {
 /// the system bar sat at the bottom on the database's top level and at
 /// the top in subgroups (scopes move it), and could vanish after going
 /// back. It's drawn like the system field.
+///
+/// The cause, found later: `.searchable` was on each pushed group screen.
+/// On iOS 26 and later that makes it a toolbar item of that one screen,
+/// which floats at the bottom on iPhone and isn't put back after a pop.
+/// Attached to the NavigationStack it stays put (the AutoFill picker does
+/// this; see EntryPickerStack there). Group screens keep this field
+/// because each one searches its own group with its own scope.
 struct GroupSearchBar: View {
     @Binding var query: String
     @Binding var scope: SearchScope
