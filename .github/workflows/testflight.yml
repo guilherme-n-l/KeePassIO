@@ -1,10 +1,15 @@
 name: TestFlight
 
-# Archives a Release build of main and uploads it to App Store Connect,
-# where it shows up in TestFlight after processing (usually 10-30
-# minutes). Run by hand from the Actions tab; it never submits for review.
-# It runs scripts/release.sh, the same script used on the owner's Mac, so
-# the build number is the commit count of main.
+# Archives a Release build and uploads it to App Store Connect, where it
+# shows up in TestFlight after processing (usually 10-30 minutes). It never
+# submits for review.
+#
+# A release is a tag: pushing v1.0.1 on a commit of main uploads version
+# 1.0.1 of that commit (git tag v1.0.1 && git push origin v1.0.1). It can
+# also be run by hand on an existing tag (Actions > TestFlight > Run, "Use
+# workflow from" the tag). It runs scripts/release.sh, the same script used
+# on the owner's Mac: the version comes from the tag and the build number
+# is the commit count, so neither is stored in the project.
 #
 # Signing is cloud-managed by Xcode (automatic signing with
 # -allowProvisioningUpdates), authenticated with the App Store Connect API
@@ -14,11 +19,14 @@ name: TestFlight
 #   ASC_API_KEY     the contents of the downloaded AuthKey_<ID>.p8
 # Cloud-managed distribution signing needs a key with the Admin role.
 #
-# Only people with write access can start it, it only runs on main, and
-# the job uses the "testflight" environment, so required reviewers can be
-# added under Settings > Environments to approve each upload.
+# Only people with write access can push tags or start it, it only builds
+# tags of commits on main, and the job uses the "testflight" environment,
+# so required reviewers can be added under Settings > Environments to
+# approve each upload.
 
 on:
+  push:
+    tags: ["v*"]
   workflow_dispatch:
 
 permissions:
@@ -31,7 +39,7 @@ concurrency:
 jobs:
   upload:
     name: Upload a build to TestFlight
-    if: github.ref == 'refs/heads/main'
+    if: startsWith(github.ref, 'refs/tags/v')
     runs-on: macos-26
     environment: testflight
     steps:
@@ -39,6 +47,13 @@ jobs:
         with:
           # The build number is the commit count, which needs all of history.
           fetch-depth: 0
+
+      - name: Check the tag is on main
+        run: |
+          if ! git merge-base --is-ancestor HEAD origin/main; then
+            echo "::error::$GITHUB_REF_NAME isn't on main; tag a commit of main"
+            exit 1
+          fi
 
       - name: Write the API key
         env:

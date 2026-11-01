@@ -15,8 +15,8 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: App Store version to update
-        default: "1.0"
+        description: App Store version to update (like 1.0.1)
+        required: true
       metadata:
         description: Upload the listing text
         type: boolean

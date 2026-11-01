@@ -5,12 +5,15 @@
 # Connect API key when ASC_KEY_PATH, ASC_KEY_ID and ASC_ISSUER_ID are set
 # (the TestFlight workflow does this).
 #
-#   scripts/release.sh               archive, export and upload
-#   scripts/release.sh --no-upload   archive and export an .ipa only
+#   scripts/release.sh                    archive, export and upload
+#   scripts/release.sh --no-upload        archive and export an .ipa only
+#   scripts/release.sh --version 1.0.1    use this version instead of the tag
 #
-# The build number is the number of commits on the current branch, so
-# every upload gets a higher one without editing the project. The version
-# shown to users is MARKETING_VERSION in the project (e.g. 1.0).
+# Neither number lives in the project. The version shown to users comes
+# from the release tag on the commit being built (v1.0.1 -> 1.0.1): tag a
+# commit to release it. The build number is the number of commits, so
+# every upload gets a higher one. The project's MARKETING_VERSION is only
+# a placeholder for local builds.
 #
 # Needs: Xcode signed in to the team's Apple ID (or the API key above,
 # with the Admin role so Xcode can use cloud-managed signing), the latest
@@ -21,11 +24,16 @@ set -euo pipefail
 cd "$(git rev-parse --show-toplevel)"
 
 upload=1
+version=""
 while (($#)); do
   case "$1" in
     --no-upload) upload=0 ;;
+    --version)
+      version="${2:?--version needs a value, e.g. 1.0.1}"
+      shift
+      ;;
     -h | --help)
-      sed -n '2,18p' "$0" | sed 's/^# \{0,1\}//'
+      sed -n '2,21p' "$0" | sed 's/^# \{0,1\}//'
       exit 0
       ;;
     *)
@@ -52,6 +60,19 @@ if [ -n "${ASC_KEY_PATH:-}" ]; then
   )
 fi
 
+if [ -z "$version" ]; then
+  tag="$(git tag --points-at HEAD --list 'v*' --sort=-version:refname | head -n 1)"
+  if [ -z "$tag" ]; then
+    echo "release: no release tag on $(git rev-parse --short HEAD); tag it first (git tag v1.0.1) or pass --version" >&2
+    exit 1
+  fi
+  version="${tag#v}"
+fi
+if ! [[ "$version" =~ ^[0-9]+(\.[0-9]+){1,2}$ ]]; then
+  echo "release: '$version' isn't a version App Store Connect accepts (like 1.0 or 1.0.1)" >&2
+  exit 1
+fi
+
 build_number="$(git rev-list --count HEAD)"
 team_id="YXD4GPD63H"
 out="build/release-$build_number"
@@ -59,7 +80,7 @@ archive="$out/KeePassIO.xcarchive"
 rm -rf "$out"
 mkdir -p "$out"
 
-echo "Archiving build $build_number ($(git rev-parse --short HEAD))..."
+echo "Archiving version $version build $build_number ($(git rev-parse --short HEAD))..."
 xcodebuild archive \
   -project keepassios.xcodeproj \
   -scheme keepassios \
@@ -68,6 +89,7 @@ xcodebuild archive \
   -archivePath "$archive" \
   -allowProvisioningUpdates \
   ${auth[@]+"${auth[@]}"} \
+  MARKETING_VERSION="$version" \
   CURRENT_PROJECT_VERSION="$build_number" \
   | tee "$out/archive.log" | grep -E "error:|warning: .*(sign|provision)|ARCHIVE (SUCCEEDED|FAILED)" || true
 if [ ! -d "$archive" ]; then
@@ -117,7 +139,7 @@ if ! xcodebuild -exportArchive \
 fi
 
 if [ "$upload" -eq 1 ]; then
-  echo "Uploaded build $build_number. It shows up in App Store Connect > TestFlight after processing (usually 10-30 minutes)."
+  echo "Uploaded version $version build $build_number. It shows up in App Store Connect > TestFlight after processing (usually 10-30 minutes)."
 else
   echo "Exported to $out/export"
 fi
