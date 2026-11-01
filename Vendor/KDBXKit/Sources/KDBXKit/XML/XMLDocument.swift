@@ -81,7 +81,20 @@ final class Document {
         let delegate = XMLBuildDelegate()
         // Unqualified so the type resolves to FoundationXML.XMLParser on
         // Linux (where Foundation.XMLParser is a deprecated stub).
-        let parser = XMLParser(data: data)
+        //
+        // On Linux the data-backed parser stops with NSXMLParserErrorDomain 1
+        // after consuming a document of roughly 10 MB or more, reporting the
+        // failure at the line past the last one, on input that is well-formed.
+        // The stream-backed parser reads the identical bytes without
+        // complaint, and a vault crosses that size once it holds a few
+        // thousand entries with history. The data path stays on Apple
+        // platforms, where it is the system parser.
+        let parser: XMLParser
+        #if canImport(FoundationXML)
+        parser = XMLParser(stream: InputStream(data: data))
+        #else
+        parser = XMLParser(data: data)
+        #endif
         parser.delegate = delegate
         // Explicitly defensive: never resolve external entities (XXE), never
         // process namespaces (KDBX doesn't use them and we'd rather see
@@ -129,10 +142,11 @@ final class Document {
 /// - `textBuffer` accumulates characters/CDATA between events; flushed
 ///   on element start/end so adjacent text and CDATA blocks merge into a
 ///   single text node (matches `Node.addText` semantics).
-/// - On `didEndElement`, pure-whitespace text children are stripped if
-///   the element also has element children. This is the standard
-///   "ignorable whitespace" treatment: KDBX never uses mixed content, so
-///   the indentation between `<X>` and `<Y>` siblings is noise.
+/// - Pure-whitespace text is held in `pendingWhitespace` rather than added
+///   to the tree, and is kept on `didEndElement` only if the element has no
+///   element children. This is the standard "ignorable whitespace"
+///   treatment: KDBX never uses mixed content, so the indentation between
+///   `<X>` and `<Y>` siblings is noise.
 /// - `capturedError` short-circuits the parse if anything fails: either
 ///   a depth cap violation we raised ourselves, or a parser-reported
 ///   syntax error. Once set, subsequent delegate callbacks ignore.
@@ -142,13 +156,25 @@ private final class XMLBuildDelegate: NSObject, XMLParserDelegate {
 
     private var stack: [Node] = []
     private var textBuffer: String = ""
+    /// Whitespace-only characters that arrived at an element boundary. They
+    /// are indentation in a KDBX document, so they are only kept when their
+    /// element turns out to have no element children (a value that is really
+    /// just spaces), which keeps the tree free of the ~one whitespace node
+    /// per element an indented vault would otherwise carry.
+    private var pendingWhitespace: String = ""
 
     private func flushText() {
         guard !textBuffer.isEmpty else { return }
-        if let top = stack.last {
-            top.addText(textBuffer)
-        }
+        let text = textBuffer
         textBuffer = ""
+        if text.unicodeScalars.allSatisfy(Node.isXMLWhitespace) {
+            pendingWhitespace = text
+            return
+        }
+        pendingWhitespace = ""
+        if let top = stack.last {
+            top.addText(text)
+        }
     }
 
     func parser(
@@ -170,15 +196,19 @@ private final class XMLBuildDelegate: NSObject, XMLParserDelegate {
         }
 
         flushText()
+        // Indentation before a child element is never content.
+        pendingWhitespace = ""
 
         let element = Node.element(name: elementName)
         // Foundation gives attributes as a Dictionary, so the source-order
         // is lost. Sort by name to keep our output deterministic — two
         // parses of the same input yield byte-identical re-serialized
         // output, which `regenerateSalts: false` relies on transitively.
-        element.attributes = attributeDict
-            .sorted { $0.key < $1.key }
-            .map { (name: $0.key, value: $0.value) }
+        if !attributeDict.isEmpty {
+            element.attributes = attributeDict
+                .sorted { $0.key < $1.key }
+                .map { (name: $0.key, value: $0.value) }
+        }
 
         if let parent = stack.last {
             element.parent = parent
@@ -200,12 +230,12 @@ private final class XMLBuildDelegate: NSObject, XMLParserDelegate {
 
         guard let closing = stack.popLast() else { return }
 
-        let hasElementChild = closing.children.contains { $0.kind == .element }
-        if hasElementChild {
-            closing.children.removeAll { child in
-                child.kind == .text
-                    && child.value.unicodeScalars.allSatisfy(Node.isXMLWhitespace)
+        if !pendingWhitespace.isEmpty {
+            let hasElementChild = closing.children.contains { $0.kind == .element }
+            if !hasElementChild {
+                closing.addText(pendingWhitespace)
             }
+            pendingWhitespace = ""
         }
     }
 
