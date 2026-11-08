@@ -1,5 +1,5 @@
 {
-  "originHash" : "0e0405032de5c5153d69fcd3e8032069a99a73536856ba23ab1938472a0447c1",
+  "originHash" : "f98eb9c864fb95ff1d58e6f06c3ad7bc40da7d3e00655d8a253c6421e6d8139a",
   "pins" : [
     {
       "identity" : "punycodeswift",
@@ -51,8 +51,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/ameshkov/swift-psl.git",
       "state" : {
-        "revision" : "7430353cd1a3483d588f987593954ec3c6104fdb",
-        "version" : "1.1.188"
+        "revision" : "e5a32ddf64b0ecc3a52903d645062e991535282b",
+        "version" : "1.1.191"
       }
     }
   ],
