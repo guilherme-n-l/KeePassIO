@@ -187,6 +187,43 @@ struct MergerScenarioTests {
         #expect(result.report.changes.contains(.groupKept(id: fixture.groupID, name: "Email")))
     }
 
+    @Test func deletedNestedGroupsAreRemovedBottomUp() throws {
+        var base = try Self.fixture().base
+        let email = try #require(base.root.groups.first)
+        let archive = Group(name: "Archive", times: Times(creation: Self.t0))
+        try base.add(archive, to: email.id)
+        var deleter = base
+        deleter.meta.recycleBinEnabled = false
+        try deleter.deleteGroup(email.id, at: Self.time(5))
+
+        let result = Merger.merge(local: base, remote: deleter)
+        #expect(result.merged.group(withID: email.id) == nil)
+        #expect(result.merged.group(withID: archive.id) == nil)
+        #expect(result.report.changes.contains(.groupDeleted(id: archive.id, name: "Archive")))
+        #expect(result.report.changes.contains(.groupDeleted(id: email.id, name: "Email")))
+    }
+
+    @Test func nestedGroupWithNewEntryKeepsItsAncestors() throws {
+        var base = try Self.fixture().base
+        let email = try #require(base.root.groups.first)
+        let archive = Group(name: "Archive", times: Times(creation: Self.t0))
+        try base.add(archive, to: email.id)
+        var deleter = base
+        deleter.meta.recycleBinEnabled = false
+        try deleter.deleteGroup(email.id, at: Self.time(5))
+        var adder = base
+        var newEntry = Entry(times: Times(creation: Self.time(6)))
+        newEntry.title = "Filed away"
+        try adder.add(newEntry, to: archive.id)
+
+        let result = Merger.merge(local: adder, remote: deleter)
+        #expect(result.merged.group(withID: archive.id) != nil)
+        #expect(result.merged.group(withID: email.id) != nil)
+        #expect(result.merged.entry(withID: newEntry.id) != nil)
+        #expect(result.report.changes.contains(.groupKept(id: archive.id, name: "Archive")))
+        #expect(result.report.changes.contains(.groupKept(id: email.id, name: "Email")))
+    }
+
     @Test func newerSettingsWin() throws {
         let fixture = try Self.fixture()
         var remote = fixture.base

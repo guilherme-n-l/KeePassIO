@@ -147,18 +147,27 @@ struct MergeState {
     }
 
     mutating func resolveGroupDeletions() {
+        guard !groupsToDeleteIfEmpty.isEmpty else { return }
+        var childCount: [UUID: Int] = [:]
+        for node in entries.values {
+            if let parent = node.parent { childCount[parent, default: 0] += 1 }
+        }
+        for node in groups.values {
+            if let parent = node.parent { childCount[parent, default: 0] += 1 }
+        }
         // Deepest groups first, so a parent sees its children's outcome.
-        let ordered = groupsToDeleteIfEmpty.keys.sorted { depth(of: $0) > depth(of: $1) }
-        for id in ordered {
+        let ordered = groupsToDeleteIfEmpty.keys
+            .map { (id: $0, depth: depth(of: $0)) }
+            .sorted { $0.depth > $1.depth }
+        for (id, _) in ordered {
             guard let node = groups[id], let deletion = groupsToDeleteIfEmpty[id] else { continue }
-            let hasEntries = entries.values.contains { $0.parent == id }
-            let hasGroups = groups.values.contains { $0.parent == id }
-            if hasEntries || hasGroups {
+            if childCount[id, default: 0] > 0 {
                 report.changes.append(.groupKept(id: id, name: node.item.name))
             } else {
                 groups[id] = nil
                 deletedObjects[id] = deletion
                 report.changes.append(.groupDeleted(id: id, name: node.item.name))
+                if let parent = node.parent { childCount[parent, default: 0] -= 1 }
             }
         }
     }

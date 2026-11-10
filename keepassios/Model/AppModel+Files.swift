@@ -64,8 +64,6 @@ extension AppModel {
         return count
     }
 
-    /// Locks every open database (saving changes first). Does nothing,
-    /// and leaves navigation alone, when none is open.
     /// Brings in entries AutoFill saved while it couldn't reach the
     /// database file, then deletes its copy once they're saved here.
     func mergePendingChanges(for id: UUID, into session: DatabaseSession) async {
