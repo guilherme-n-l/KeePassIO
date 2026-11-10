@@ -16,7 +16,7 @@ import KPObservability
 /// app show the report for review before saving the result.
 public enum Merger {
     public static func merge(local: Database, remote: Database, base: Database? = nil) -> MergeResult {
-        Trace.span(.mergePlan, argument: UInt64(local.root.allEntries.count)) {
+        Trace.span(.mergePlan, argument: UInt64(local.root.entryCount)) {
             var merge = MergeState(local: local, remote: remote, base: base)
             merge.run()
             return MergeResult(merged: merge.buildDatabase(), report: merge.report)
@@ -84,7 +84,9 @@ struct MergeState {
 
     mutating func mergeGroups() {
         let ids = Set(localIndex.groups.keys).union(remoteIndex.groups.keys)
-        for id in ids {
+        // Sorted so the report lists group changes in the same order on
+        // every run; a set's order changes from launch to launch.
+        for id in ids.sorted(by: { $0.uuidString < $1.uuidString }) {
             let localNode = localIndex.groups[id]
             let remoteNode = remoteIndex.groups[id]
             switch (localNode, remoteNode) {

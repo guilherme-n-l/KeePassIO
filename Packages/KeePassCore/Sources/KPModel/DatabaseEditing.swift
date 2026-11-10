@@ -25,6 +25,11 @@ extension Group {
         }
     }
 
+    /// How many entries this group and its subgroups hold.
+    public var entryCount: Int {
+        groups.reduce(entries.count) { $0 + $1.entryCount }
+    }
+
     /// Every entry in this group and its subgroups.
     public var allEntries: [Entry] {
         var result: [Entry] = []
@@ -51,41 +56,19 @@ extension Database {
     // MARK: Lookup
 
     public func entry(withID id: UUID) -> Entry? {
-        var found: Entry?
-        root.forEachGroup { group, _ in
-            if found == nil, let entry = group.entries.first(where: { $0.id == id }) {
-                found = entry
-            }
-        }
-        return found
+        root.entry(withIDInSubtree: id)
     }
 
     public func group(withID id: UUID) -> Group? {
-        var found: Group?
-        root.forEachGroup { group, _ in
-            if found == nil, group.id == id { found = group }
-        }
-        return found
+        root.group(withIDInSubtree: id)
     }
 
     public func location(ofEntry id: UUID) -> Location? {
-        var found: Location?
-        root.forEachGroup { group, path in
-            if found == nil, group.entries.contains(where: { $0.id == id }) {
-                found = Location(path: path)
-            }
-        }
-        return found
+        root.path(toGroupWhere: { group in group.entries.contains { $0.id == id } }).map(Location.init)
     }
 
     public func location(ofGroup id: UUID) -> Location? {
-        var found: Location?
-        root.forEachGroup { group, path in
-            if found == nil, group.groups.contains(where: { $0.id == id }) {
-                found = Location(path: path)
-            }
-        }
-        return found
+        root.path(toGroupWhere: { group in group.groups.contains { $0.id == id } }).map(Location.init)
     }
 
     /// All entries except those in the recycle bin.
@@ -289,12 +272,50 @@ extension Database {
 }
 
 extension Group {
-    func group(withIDInSubtree id: UUID) -> Group? {
-        var found: Group?
-        forEachGroup { group, _ in
-            if found == nil, group.id == id { found = group }
+    // Lookups run for every row the app draws and for every edit, so they
+    // stop at the first match instead of visiting the rest of the tree.
+
+    func entry(withIDInSubtree id: UUID) -> Entry? {
+        if let entry = entries.first(where: { $0.id == id }) {
+            return entry
         }
-        return found
+        for child in groups {
+            if let entry = child.entry(withIDInSubtree: id) {
+                return entry
+            }
+        }
+        return nil
+    }
+
+    func group(withIDInSubtree id: UUID) -> Group? {
+        if self.id == id {
+            return self
+        }
+        for child in groups {
+            if let group = child.group(withIDInSubtree: id) {
+                return group
+            }
+        }
+        return nil
+    }
+
+    /// Group IDs from this group down to the first group (depth first)
+    /// that `matches`, both included.
+    func path(toGroupWhere matches: (Group) -> Bool) -> [UUID]? {
+        var path: [UUID] = []
+        return appendPath(toGroupWhere: matches, to: &path) ? path : nil
+    }
+
+    private func appendPath(toGroupWhere matches: (Group) -> Bool, to path: inout [UUID]) -> Bool {
+        path.append(id)
+        if matches(self) {
+            return true
+        }
+        for child in groups where child.appendPath(toGroupWhere: matches, to: &path) {
+            return true
+        }
+        path.removeLast()
+        return false
     }
 }
 
