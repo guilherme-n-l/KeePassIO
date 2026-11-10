@@ -81,6 +81,23 @@ struct SearchIndexTests {
         #expect(index.search("attr:checking").map(\.title) == ["Banco Café"])
     }
 
+    @Test func patternsMatchEveryEntryAndInvalidOnesMatchNothing() throws {
+        var database = try Self.database()
+        let workID = try #require(database.root.groups.first { $0.name == "Work" }?.id)
+        for number in 1...3 {
+            var entry = Entry()
+            entry.title = "Server \(number)"
+            try database.add(entry, to: workID)
+        }
+        let index = SearchIndex(database)
+        #expect(Set(index.search("t:serv*").map(\.title)) == ["Server 1", "Server 2", "Server 3"])
+        #expect(Set(index.search(#"*server\s[12]$"#).map(\.title)) == ["Server 1", "Server 2"])
+        #expect(index.search("w?rk/serv*3").map(\.title) == ["Server 3"])
+        #expect(index.search("*w.rk/^server").count == 3)
+        #expect(index.search("alice -t:g*l").map(\.title) == ["Banco Café"])
+        #expect(index.search("*(unclosed").isEmpty)
+    }
+
     @Test func searchCanBeLimitedToAGroup() throws {
         let database = try Self.database()
         let work = try #require(database.root.groups.first { $0.name == "Work" })

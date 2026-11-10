@@ -152,6 +152,40 @@ struct DatabaseEditingTests {
         #expect(database.recycleBin?.groups.isEmpty == true)
     }
 
+    @Test func lookupsFindNestedItemsAndReportMissingOnes() throws {
+        let fixture = try makeFixture()
+        var database = fixture.database
+        let inner = Group(name: "Archive", times: Times(creation: Self.t0))
+        let sibling = Group(name: "Bank", times: Times(creation: Self.t0))
+        try database.add(inner, to: fixture.email.id)
+        try database.add(sibling, to: database.root.id)
+        var deep = Entry(times: Times(creation: Self.t0))
+        deep.title = "Old mail"
+        try database.add(deep, to: inner.id)
+        var last = Entry(times: Times(creation: Self.t0))
+        last.title = "Savings"
+        try database.add(last, to: sibling.id)
+        let rootID = database.root.id
+
+        #expect(database.entry(withID: deep.id)?.title == "Old mail")
+        #expect(database.entry(withID: last.id)?.title == "Savings")
+        #expect(database.group(withID: rootID)?.id == rootID)
+        #expect(database.group(withID: inner.id)?.name == "Archive")
+        #expect(database.location(ofEntry: deep.id)?.path == [rootID, fixture.email.id, inner.id])
+        #expect(database.location(ofEntry: last.id)?.path == [rootID, sibling.id])
+        #expect(database.location(ofGroup: inner.id)?.path == [rootID, fixture.email.id])
+        #expect(database.location(ofGroup: sibling.id)?.path == [rootID])
+        #expect(database.location(ofGroup: rootID) == nil)
+        #expect(database.root.entryCount == 3)
+        #expect(database.root.entryCount == database.root.allEntries.count)
+
+        let missing = UUID()
+        #expect(database.entry(withID: missing) == nil)
+        #expect(database.group(withID: missing) == nil)
+        #expect(database.location(ofEntry: missing) == nil)
+        #expect(database.location(ofGroup: missing) == nil)
+    }
+
     @Test func renameGroup() throws {
         let fixture = try makeFixture()
         var database = fixture.database

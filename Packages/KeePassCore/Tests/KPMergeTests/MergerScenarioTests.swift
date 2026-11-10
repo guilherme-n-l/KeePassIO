@@ -235,6 +235,22 @@ struct MergerScenarioTests {
         #expect(result.report.changes.contains(.settingsUpdated))
     }
 
+    @Test func groupChangesAreReportedInAStableOrder() throws {
+        let fixture = try Self.fixture()
+        var remote = fixture.base
+        var added: [Group] = []
+        for number in 0..<8 {
+            let group = Group(name: "Group \(number)", times: Times(creation: Self.time(1)))
+            try remote.add(group, to: remote.root.id)
+            added.append(group)
+        }
+
+        let result = Merger.merge(local: fixture.base, remote: remote)
+        let expected = added.sorted { $0.id.uuidString < $1.id.uuidString }
+            .map { MergeChange.groupAdded(id: $0.id, name: $0.name) }
+        #expect(result.report.changes == expected)
+    }
+
     @Test func differentRootUUIDsAreTreatedAsTheSameRoot() throws {
         let fixture = try Self.fixture()
         var remote = fixture.base
