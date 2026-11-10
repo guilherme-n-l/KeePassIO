@@ -6,7 +6,8 @@ extension MergeState {
 
     mutating func mergeEntries() {
         let ids = Set(localIndex.entries.keys).union(remoteIndex.entries.keys)
-        for id in ids.sorted(by: { $0.uuidString < $1.uuidString }) {
+        let ordered = ids.map { (key: $0.uuidString, id: $0) }.sorted { $0.key < $1.key }
+        for (_, id) in ordered {
             switch (localIndex.entries[id], remoteIndex.entries[id]) {
             case (let localNode?, let remoteNode?):
                 entries[id] = mergedEntry(local: localNode, remote: remoteNode)
