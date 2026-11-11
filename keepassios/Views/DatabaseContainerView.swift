@@ -25,12 +25,5 @@ struct DatabaseContainerView: View {
                 }
             }
         }
-        .onChange(of: session.hasUnsavedChanges) { _, unsaved in
-            // Every edit is saved right away, as in other KeePass apps, so
-            // locking or leaving never loses work.
-            if unsaved {
-                Task { await model.save(session) }
-            }
-        }
     }
 }

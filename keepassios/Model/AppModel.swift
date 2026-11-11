@@ -149,6 +149,7 @@ final class AppModel {
             )
             state = try await store.update { $0.databases.append(reference) }
             sessions[reference.id] = session
+            autosave(session)
             return reference.id
         } catch {
             errorMessage = String(localized: "Couldn't create the database: \(error.localizedDescription)")
@@ -172,6 +173,7 @@ final class AppModel {
         let file = BookmarkedFile(bookmark: reference.bookmark, displayName: reference.displayName)
         let session = DatabaseSession(file: Self.cached(file, id: reference.id), codec: codec)
         sessions[reference.id] = session
+        autosave(session)
         return session
     }
 
@@ -314,5 +316,26 @@ final class AppModel {
 
     func updateSettings(_ settings: Settings) async {
         state = (try? await store.update { $0.settings = settings }) ?? state
+    }
+}
+
+extension AppModel {
+    /// Saves a database whenever it gets unsaved changes, so every edit is
+    /// written right away, as in other KeePass apps, whichever screen it
+    /// was made on. Stops once the session leaves the library.
+    fileprivate func autosave(_ session: DatabaseSession) {
+        withObservationTracking {
+            _ = session.hasUnsavedChanges
+        } onChange: { [weak self, weak session] in
+            // Called as the value is about to change: look once it has,
+            // and watch for the next change before saving.
+            Task { @MainActor in
+                guard let self, let session, self.sessions.values.contains(where: { $0 === session }) else { return }
+                self.autosave(session)
+                if session.hasUnsavedChanges {
+                    await self.save(session)
+                }
+            }
+        }
     }
 }
