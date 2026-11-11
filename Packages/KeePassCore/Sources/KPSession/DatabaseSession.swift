@@ -12,7 +12,9 @@ import Observation
 /// stay consistent. Saving checks that the file hasn't changed since it
 /// was read; if it has, the other version is merged in first (three-way,
 /// using the last version this session read or wrote as the base) and the
-/// report is kept in `lastMergeReport` for the review screen.
+/// report is kept in `lastMergeReport` for the review screen. Merging in
+/// another file the user picks goes through `previewMerge(from:key:)` and
+/// `applyMerge(_:choices:)`, so they see the changes before any is made.
 @MainActor
 @Observable
 public final class DatabaseSession {
@@ -236,21 +238,65 @@ public final class DatabaseSession {
     /// The result is unsaved; call `save()` to write it.
     public func mergeChanges(from other: any DatabaseFile) async throws(SessionError) {
         guard let key else { throw .locked }
+        let remote = try await decode(other, key: key)
+        guard let database else { throw .locked }
+        // No common base: the copy may predate edits made here since,
+        // and a three-way merge would read those as deleted by the
+        // copy. Without a base nothing is deleted except through the
+        // database's own deletion records.
+        let result = Merger.merge(local: database, remote: remote, base: nil)
+        lastMergeReport = result.report
+        guard !result.report.isEmpty else { return }
+        install(result.merged)
+        hasUnsavedChanges = true
+    }
+
+    /// Forgets the report of the last automatic merge, once the user has
+    /// seen it.
+    public func dismissMergeReport() {
+        lastMergeReport = nil
+    }
+
+    // MARK: Merging another file
+
+    /// Works out what merging another database file into this one would
+    /// change, without changing anything. The file is opened with `key`,
+    /// or with this database's own key when none is given; `.invalidKey`
+    /// means the other file needs its own.
+    public func previewMerge(
+        from other: any DatabaseFile,
+        key otherKey: CompositeKey? = nil
+    ) async throws(SessionError) -> MergePreview {
+        guard let key else { throw .locked }
+        let remote = try await decode(other, key: otherKey ?? key)
+        guard let database else { throw .locked }
+        // No base, as in `mergeChanges(from:)`: entries are compared
+        // through their own histories.
+        let report = Merger.merge(local: database, remote: remote, base: nil).report
+        return MergePreview(sourceName: other.displayName, local: database, remote: remote, report: report)
+    }
+
+    /// Merges a previewed file into the open database, keeping the chosen
+    /// side of each conflicting field. The result is unsaved; call
+    /// `save()` to write it. Returns what changed, which differs from the
+    /// preview only if the database was edited in between.
+    @discardableResult
+    public func applyMerge(
+        _ preview: MergePreview,
+        choices: MergeChoices = MergeChoices()
+    ) throws(SessionError) -> MergeReport {
+        guard let database else { throw .locked }
+        let result = Merger.merge(local: database, remote: preview.remote, base: nil, choices: choices)
+        guard !result.report.isEmpty else { return result.report }
+        install(result.merged)
+        hasUnsavedChanges = true
+        return result.report
+    }
+
+    private func decode(_ file: any DatabaseFile, key: CompositeKey) async throws(SessionError) -> Database {
         do {
-            let (data, _) = try await other.read()
-            let decoded = try await codec.decode(data, key: key, memoryLimit: memoryLimit)
-            guard let database else { throw SessionError.locked }
-            // No common base: the copy may predate edits made here since,
-            // and a three-way merge would read those as deleted by the
-            // copy. Without a base nothing is deleted except through the
-            // database's own deletion records.
-            let result = Merger.merge(local: database, remote: decoded.database, base: nil)
-            lastMergeReport = result.report
-            guard !result.report.isEmpty else { return }
-            install(result.merged)
-            hasUnsavedChanges = true
-        } catch let error as SessionError {
-            throw error
+            let (data, _) = try await file.read()
+            return try await codec.decode(data, key: key, memoryLimit: memoryLimit).database
         } catch {
             throw SessionError(error)
         }
@@ -295,6 +341,18 @@ public final class DatabaseSession {
         self.database = database
         searchIndex = SearchIndex(database)
     }
+}
+
+/// What merging another database file into the open one would do, for
+/// the user to review before it happens.
+public struct MergePreview: Sendable, Equatable {
+    /// The other file's name.
+    public let sourceName: String
+    /// The open database when the preview was made.
+    public let local: Database
+    /// The other file's content.
+    public let remote: Database
+    public let report: MergeReport
 }
 
 /// An icon to give an entry or group.
