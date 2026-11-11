@@ -75,7 +75,7 @@ public struct SearchIndex: Sendable {
 
     public init(_ database: Database) {
         var documents: [Document] = []
-        Trace.span(.indexBuild, argument: UInt64(database.root.allEntries.count)) {
+        Trace.span(.indexBuild, argument: UInt64(database.root.entryCount)) {
             var names: [UUID: String] = [:]
             database.root.forEachGroup { group, _ in names[group.id] = group.name }
             database.root.forEachGroup { group, path in
@@ -83,9 +83,10 @@ public struct SearchIndex: Sendable {
                 // `path` starts at the root group, which isn't part of any
                 // name the user sees.
                 let groupPath = path.dropFirst().map { Self.normalize(names[$0] ?? "") }
+                let groupIDs = Set(path)
                 for entry in group.entries {
                     documents.append(
-                        Self.document(for: entry, group: group, groupPath: groupPath, groupIDs: Set(path))
+                        Self.document(for: entry, group: group, groupPath: groupPath, groupIDs: groupIDs)
                     )
                 }
             }
@@ -100,7 +101,7 @@ public struct SearchIndex: Sendable {
     /// entries in that group or its subgroups are searched.
     public func search(_ query: String, in groupID: UUID? = nil, limit: Int = .max, at date: Date = Date()) -> [Hit] {
         Trace.span(.searchQuery, argument: UInt64(documents.count)) {
-            let terms = Self.parse(query)
+            let terms = Self.parse(query).map(Matcher.init)
             let candidates = documents.filter { document in
                 groupID.map { document.groupIDs.contains($0) } ?? true
             }
@@ -220,14 +221,53 @@ public struct SearchIndex: Sendable {
         }
     }
 
+}
+
+extension SearchIndex {
     // MARK: Matching
 
+    /// A term ready to be matched against every entry: its regular
+    /// expression and path parts are worked out once per search, not once
+    /// per field of every entry.
+    private struct Matcher {
+        let term: Term
+        /// For wildcard and regular expression terms; nil when the pattern
+        /// is invalid, which matches nothing.
+        let regex: NSRegularExpression?
+        let pathParts: [Matcher]?
+
+        init(_ term: Term) {
+            self.init(term, splittingPath: true)
+        }
+
+        private init(_ term: Term, splittingPath: Bool) {
+            self.term = term
+            let pattern: String? =
+                switch term.mode {
+                case .wildcard: SearchIndex.wildcardPattern(term.text)
+                case .regex: term.text
+                case .contains, .exact: nil
+                }
+            regex = pattern.flatMap {
+                try? NSRegularExpression(pattern: $0, options: [.caseInsensitive, .dotMatchesLineSeparators])
+            }
+            pathParts =
+                splittingPath
+                ? term.pathParts?.map { part in
+                    let mode: MatchMode =
+                        term.mode == .regex ? .regex : part.contains("*") || part.contains("?") ? .wildcard : .contains
+                    return Matcher(Term(field: nil, text: part, mode: mode), splittingPath: false)
+                }
+                : nil
+        }
+    }
+
     /// The total score, or nil when the entry doesn't match every term.
-    private static func score(_ terms: [Term], in document: Document, at date: Date) -> Int? {
+    private static func score(_ terms: [Matcher], in document: Document, at date: Date) -> Int? {
         var total = 0
-        for term in terms {
-            let score = self.score(term, in: document, at: date)
-            if term.excluded {
+        for matcher in terms {
+            let score = self.score(matcher, in: document, at: date)
+            if matcher.term.excluded {
                 if score != nil { return nil }
             } else {
                 guard let score else { return nil }
@@ -238,16 +278,17 @@ public struct SearchIndex: Sendable {
     }
 
     /// Higher is better; nil means the term doesn't match.
-    private static func score(_ term: Term, in document: Document, at date: Date) -> Int? {
+    private static func score(_ matcher: Matcher, in document: Document, at date: Date) -> Int? {
+        let term = matcher.term
         if term.field == .isFlag {
             guard term.text == "expired" else { return nil }
             return document.expiry.map { $0 <= date } == true ? 1 : nil
         }
-        let fieldScore = self.fieldScore(term, in: document)
+        let fieldScore = self.fieldScore(matcher, in: document)
         // A term with slashes may be a path, or literal text such as a URL.
-        if let parts = term.pathParts, term.mode != .exact, term.field == nil || term.field == .group {
+        if let parts = matcher.pathParts, term.mode != .exact, term.field == nil || term.field == .group {
             let components = term.field == .group ? document.groupPath : document.groupPath + [document.title]
-            if matchesInOrder(parts, components, mode: term.mode) {
+            if matchesInOrder(parts, components) {
                 return max(50, fieldScore ?? 0)
             }
         }
@@ -255,12 +296,13 @@ public struct SearchIndex: Sendable {
     }
 
     /// The best weighted match of a term against the fields it applies to.
-    private static func fieldScore(_ term: Term, in document: Document) -> Int? {
+    private static func fieldScore(_ matcher: Matcher, in document: Document) -> Int? {
         var best: Int?
         func consider(_ value: String, weight: Int) {
-            guard let quality = match(term, value) else { return }
+            guard let quality = match(matcher, value) else { return }
             best = max(best ?? 0, weight * quality)
         }
+        let term = matcher.term
         let all = term.field == nil
         if all || term.field == .title { consider(document.title, weight: 8) }
         if all || term.field == .user { consider(document.user, weight: 4) }
@@ -275,14 +317,14 @@ public struct SearchIndex: Sendable {
 
     /// 3 for the whole field, 2 for the start of a word, 1 elsewhere;
     /// nil for no match.
-    private static func match(_ term: Term, _ value: String) -> Int? {
+    private static func match(_ matcher: Matcher, _ value: String) -> Int? {
+        let term = matcher.term
         switch term.mode {
         case .exact:
             return value == term.text ? 3 : nil
-        case .wildcard:
-            return regexMatches(wildcardPattern(term.text), value) ? 1 : nil
-        case .regex:
-            return regexMatches(term.text, value) ? 1 : nil
+        case .wildcard, .regex:
+            guard let regex = matcher.regex else { return nil }
+            return regex.firstMatch(in: value, range: NSRange(value.startIndex..., in: value)) != nil ? 1 : nil
         case .contains:
             guard let range = value.range(of: term.text) else { return nil }
             if range == value.startIndex..<value.endIndex { return 3 }
@@ -294,13 +336,10 @@ public struct SearchIndex: Sendable {
 
     /// Whether each part matches a component, in order (not necessarily
     /// adjacent components).
-    private static func matchesInOrder(_ parts: [String], _ components: [String], mode: MatchMode) -> Bool {
+    private static func matchesInOrder(_ parts: [Matcher], _ components: [String]) -> Bool {
         var index = components.startIndex
         for part in parts {
-            let partMode: MatchMode =
-                mode == .regex ? .regex : part.contains("*") || part.contains("?") ? .wildcard : .contains
-            let pattern = Term(field: nil, text: part, mode: partMode)
-            guard let found = components[index...].firstIndex(where: { match(pattern, $0) != nil }) else {
+            guard let found = components[index...].firstIndex(where: { match(part, $0) != nil }) else {
                 return false
             }
             index = components.index(after: found)
@@ -313,17 +352,5 @@ public struct SearchIndex: Sendable {
         NSRegularExpression.escapedPattern(for: pattern)
             .replacingOccurrences(of: "\\*", with: ".*")
             .replacingOccurrences(of: "\\?", with: ".")
-    }
-
-    /// Whether `pattern` matches somewhere in `value`, ignoring case and
-    /// diacritics. An invalid pattern matches nothing.
-    private static func regexMatches(_ pattern: String, _ value: String) -> Bool {
-        guard
-            let regex = try? NSRegularExpression(
-                pattern: pattern,
-                options: [.caseInsensitive, .dotMatchesLineSeparators]
-            )
-        else { return false }
-        return regex.firstMatch(in: value, range: NSRange(value.startIndex..., in: value)) != nil
     }
 }

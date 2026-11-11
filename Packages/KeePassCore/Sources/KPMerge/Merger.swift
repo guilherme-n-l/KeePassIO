@@ -16,7 +16,7 @@ import KPObservability
 /// app show the report for review before saving the result.
 public enum Merger {
     public static func merge(local: Database, remote: Database, base: Database? = nil) -> MergeResult {
-        Trace.span(.mergePlan, argument: UInt64(local.root.allEntries.count)) {
+        Trace.span(.mergePlan, argument: UInt64(local.root.entryCount)) {
             var merge = MergeState(local: local, remote: remote, base: base)
             merge.run()
             return MergeResult(merged: merge.buildDatabase(), report: merge.report)
@@ -84,7 +84,9 @@ struct MergeState {
 
     mutating func mergeGroups() {
         let ids = Set(localIndex.groups.keys).union(remoteIndex.groups.keys)
-        for id in ids {
+        // Sorted so the report lists group changes in the same order on
+        // every run; a set's order changes from launch to launch.
+        for id in ids.sorted(by: { $0.uuidString < $1.uuidString }) {
             let localNode = localIndex.groups[id]
             let remoteNode = remoteIndex.groups[id]
             switch (localNode, remoteNode) {
@@ -147,18 +149,27 @@ struct MergeState {
     }
 
     mutating func resolveGroupDeletions() {
+        guard !groupsToDeleteIfEmpty.isEmpty else { return }
+        var childCount: [UUID: Int] = [:]
+        for node in entries.values {
+            if let parent = node.parent { childCount[parent, default: 0] += 1 }
+        }
+        for node in groups.values {
+            if let parent = node.parent { childCount[parent, default: 0] += 1 }
+        }
         // Deepest groups first, so a parent sees its children's outcome.
-        let ordered = groupsToDeleteIfEmpty.keys.sorted { depth(of: $0) > depth(of: $1) }
-        for id in ordered {
+        let ordered = groupsToDeleteIfEmpty.keys
+            .map { (id: $0, depth: depth(of: $0)) }
+            .sorted { $0.depth > $1.depth }
+        for (id, _) in ordered {
             guard let node = groups[id], let deletion = groupsToDeleteIfEmpty[id] else { continue }
-            let hasEntries = entries.values.contains { $0.parent == id }
-            let hasGroups = groups.values.contains { $0.parent == id }
-            if hasEntries || hasGroups {
+            if childCount[id, default: 0] > 0 {
                 report.changes.append(.groupKept(id: id, name: node.item.name))
             } else {
                 groups[id] = nil
                 deletedObjects[id] = deletion
                 report.changes.append(.groupDeleted(id: id, name: node.item.name))
+                if let parent = node.parent { childCount[parent, default: 0] -= 1 }
             }
         }
     }
