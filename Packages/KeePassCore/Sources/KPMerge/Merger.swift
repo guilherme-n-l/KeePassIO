@@ -4,20 +4,29 @@ import KPObservability
 
 /// Merges two copies of a database, KeePass style.
 ///
-/// Items are matched by UUID. When `base` (the last version both copies
-/// shared, such as this device's last save) is available the merge is
-/// three-way and per field, so independent edits to different fields of
-/// the same entry both survive. Without it, the newer version of each item
-/// wins. Either way the losing version of an entry is kept in its history,
-/// so no data is lost; deletions recorded in `deletedObjects` win only over
-/// versions older than the deletion.
+/// Items are matched by UUID. Entries are merged three-way and per field
+/// against the last version both copies shared, so independent edits to
+/// different fields of the same entry both survive. That version comes
+/// from `base` (such as this device's last save) or, without one, from the
+/// entry's own history: the newest version found in both copies. Fields
+/// both sides changed are conflicts: the newer side wins unless `choices`
+/// picks the other. With no shared version at all, the newer version of
+/// the entry wins. Either way the losing version of an entry is kept in
+/// its history, so no data is lost; deletions recorded in `deletedObjects`
+/// win only over versions older than the deletion.
 ///
 /// `merge` is a pure function: it never modifies its inputs, which lets the
-/// app show the report for review before saving the result.
+/// app show the report for review before saving the result, and run it
+/// again with the user's choices.
 public enum Merger {
-    public static func merge(local: Database, remote: Database, base: Database? = nil) -> MergeResult {
+    public static func merge(
+        local: Database,
+        remote: Database,
+        base: Database? = nil,
+        choices: MergeChoices = MergeChoices()
+    ) -> MergeResult {
         Trace.span(.mergePlan, argument: UInt64(local.root.entryCount)) {
-            var merge = MergeState(local: local, remote: remote, base: base)
+            var merge = MergeState(local: local, remote: remote, base: base, choices: choices)
             merge.run()
             return MergeResult(merged: merge.buildDatabase(), report: merge.report)
         }
@@ -28,6 +37,7 @@ struct MergeState {
     let local: Database
     let remote: Database
     let base: Database?
+    let choices: MergeChoices
     let localIndex: Index
     let remoteIndex: Index
     let baseIndex: Index?
@@ -41,10 +51,11 @@ struct MergeState {
     var meta: Meta
     var report = MergeReport()
 
-    init(local: Database, remote: Database, base: Database?) {
+    init(local: Database, remote: Database, base: Database?, choices: MergeChoices = MergeChoices()) {
         self.local = local
         self.remote = remote
         self.base = base
+        self.choices = choices
         localIndex = Index(local)
         // Different copies can have different root UUIDs; roots always
         // correspond, so remote's root is mapped onto local's.

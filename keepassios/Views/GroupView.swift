@@ -27,6 +27,7 @@ struct GroupView: View {
     @State private var isAddingGroup = false
     @State private var newGroupName = ""
     @State private var saveError: String?
+    @State private var isPickingMergeFile = false
     @State private var copyCount = 0
     @State private var moveCount = 0
     /// Entries waiting for a name for the group they'll be put in.
@@ -140,13 +141,14 @@ struct GroupView: View {
         .sheet(
             isPresented: Binding(
                 get: { session.lastMergeReport.map { !$0.isEmpty } ?? false && isRoot },
-                set: { _ in }
+                set: { if !$0 { session.dismissMergeReport() } }
             )
         ) {
             if let report = session.lastMergeReport {
                 MergeReviewView(report: report)
             }
         }
+        .mergeFromDatabase(isPickingFile: $isPickingMergeFile, session: session)
         .onChange(of: model.quickCreateRequested) { _, requested in
             if requested, isRoot {
                 model.quickCreateRequested = false
@@ -200,6 +202,12 @@ struct GroupView: View {
                         downloadMissingIcons()
                     }
                     .disabled(isDownloadingIcons)
+                }
+                if isRoot {
+                    Button("Merge from Database…", systemImage: "arrow.triangle.merge") {
+                        isPickingMergeFile = true
+                    }
+                    .accessibilityIdentifier("group.mergeFrom")
                 }
             } label: {
                 Label("Add", systemImage: "plus")

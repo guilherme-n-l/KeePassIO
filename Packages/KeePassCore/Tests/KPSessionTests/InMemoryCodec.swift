@@ -39,3 +39,19 @@ final class InMemoryCodec: DatabaseCodec {
         return token
     }
 }
+
+/// Counts up from a starting value; safe to read from any thread.
+final class TickCounter: Sendable {
+    private let value: Mutex<Int>
+
+    init(_ start: Int) {
+        value = Mutex(start)
+    }
+
+    func next() -> Int {
+        value.withLock {
+            $0 += 1
+            return $0
+        }
+    }
+}

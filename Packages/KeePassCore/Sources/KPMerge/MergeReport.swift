@@ -26,14 +26,52 @@ public enum MergeChange: Sendable, Equatable, Hashable {
     case settingsUpdated
 }
 
-/// Both sides changed the same fields of an entry since the common base.
-/// The newer side won; the other version is in the entry's history and the
-/// user can pick per field on the review screen.
+/// Both sides changed the same fields of an entry since the version they
+/// last shared. Unless `MergeChoices` says otherwise the newer side
+/// (`winner`) is kept; the other version is in the entry's history.
 public struct MergeConflict: Sendable, Equatable, Hashable {
     public let entryID: UUID
     public let title: String
+    /// Names of the conflicting fields. A conflicting attachment is listed
+    /// as `attachmentField(name)`.
     public let fields: [String]
     public let winner: MergeSide
+
+    private static let attachmentPrefix = "attachment: "
+
+    /// How a conflicting attachment appears in `fields`.
+    public static func attachmentField(_ name: String) -> String {
+        attachmentPrefix + name
+    }
+
+    /// The attachment a name in `fields` stands for; nil for a regular
+    /// field.
+    public static func attachmentName(ofField field: String) -> String? {
+        field.hasPrefix(attachmentPrefix) ? String(field.dropFirst(attachmentPrefix.count)) : nil
+    }
+}
+
+/// Which side to keep for conflicting fields, when the user decides
+/// instead of letting the newer side win. Fields without a choice, and
+/// choices for fields that don't conflict, follow the usual rules.
+public struct MergeChoices: Sendable, Equatable {
+    private var sides: [UUID: [String: MergeSide]] = [:]
+
+    public init() {}
+
+    public var isEmpty: Bool { sides.isEmpty }
+
+    /// The side chosen for a field of an entry, named as in
+    /// `MergeConflict.fields`.
+    public subscript(entryID: UUID, field: String) -> MergeSide? {
+        get { sides[entryID]?[field] }
+        set {
+            sides[entryID, default: [:]][field] = newValue
+            if sides[entryID]?.isEmpty == true {
+                sides[entryID] = nil
+            }
+        }
+    }
 }
 
 public struct MergeReport: Sendable, Equatable {

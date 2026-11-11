@@ -57,7 +57,8 @@ extension MergeState {
 
         if !localEntry.hasSameContent(as: remoteEntry) {
             var merged: Entry
-            if let baseEntry = baseIndex?.entries[localEntry.id]?.item {
+            let baseEntry = baseIndex?.entries[localEntry.id]?.item ?? sharedVersion(of: localEntry, and: remoteEntry)
+            if let baseEntry {
                 merged = threeWayContent(local: localEntry, remote: remoteEntry, base: baseEntry)
             } else {
                 merged = remoteIsNewer ? remoteEntry : localEntry
@@ -90,49 +91,63 @@ extension MergeState {
         return result
     }
 
+    /// The newest version of an entry that both copies have, as the
+    /// current version or in history: what they looked like before they
+    /// diverged. Nil when their histories share nothing, for example after
+    /// one of them was trimmed.
+    func sharedVersion(of local: Entry, and remote: Entry) -> Entry? {
+        let remoteVersions = remote.history + [remote]
+        let localVersions = (local.history + [local]).sorted {
+            $0.times.lastModification > $1.times.lastModification
+        }
+        return localVersions.first { candidate in
+            remoteVersions.contains {
+                $0.times.lastModification == candidate.times.lastModification && $0.hasSameContent(as: candidate)
+            }
+        }
+    }
+
     /// Per-field merge against the common base: a field changed on only one
     /// side takes that side's value; a field changed differently on both is
-    /// a conflict won by the newer side.
+    /// a conflict, won by the side the user chose or else the newer side.
     mutating func threeWayContent(local: Entry, remote: Entry, base: Entry) -> Entry {
         let remoteIsNewer = remote.times.lastModification > local.times.lastModification
+        let newerSide: MergeSide = remoteIsNewer ? .remote : .local
         var result = remoteIsNewer ? remote : local
         var conflictingFields: [String] = []
 
+        /// The value for one field or attachment, noting a conflict.
+        func resolve<Value: Equatable>(_ local: Value, _ remote: Value, base: Value, reportedAs field: String) -> Value
+        {
+            if let value = pick(local, remote, base: base) {
+                return value
+            }
+            conflictingFields.append(field)
+            return (choices[result.id, field] ?? newerSide) == .remote ? remote : local
+        }
+
         let fieldNames = Set(local.fields.keys).union(remote.fields.keys).union(base.fields.keys)
         for name in fieldNames.sorted() {
-            switch pick(local.fields[name], remote.fields[name], base: base.fields[name], remoteIsNewer: remoteIsNewer)
-            {
-            case .value(let value): result.fields[name] = value
-            case .conflict(let value):
-                result.fields[name] = value
-                conflictingFields.append(name)
-            }
+            result.fields[name] = resolve(
+                local.fields[name],
+                remote.fields[name],
+                base: base.fields[name],
+                reportedAs: name
+            )
         }
 
         let attachmentNames = Set(local.attachments.keys).union(remote.attachments.keys)
             .union(base.attachments.keys)
         for name in attachmentNames.sorted() {
-            let picked = pick(
+            result.attachments[name] = resolve(
                 local.attachments[name],
                 remote.attachments[name],
                 base: base.attachments[name],
-                remoteIsNewer: remoteIsNewer
+                reportedAs: MergeConflict.attachmentField(name)
             )
-            switch picked {
-            case .value(let value): result.attachments[name] = value
-            case .conflict(let value):
-                result.attachments[name] = value
-                conflictingFields.append("attachment: \(name)")
-            }
         }
 
-        result.tags = pick(local.tags, remote.tags, base: base.tags, remoteIsNewer: remoteIsNewer).value
-        result.customData =
-            pick(local.customData, remote.customData, base: base.customData, remoteIsNewer: remoteIsNewer).value
-        result.iconID = pick(local.iconID, remote.iconID, base: base.iconID, remoteIsNewer: remoteIsNewer).value
-        result.extras = pick(local.extras, remote.extras, base: base.extras, remoteIsNewer: remoteIsNewer).value
-        result.customIconID =
-            pick(local.customIconID, remote.customIconID, base: base.customIconID, remoteIsNewer: remoteIsNewer).value
+        mergeUnreportedProperties(into: &result, local: local, remote: remote, base: base)
 
         if !conflictingFields.isEmpty {
             report.conflicts.append(
@@ -140,34 +155,36 @@ extension MergeState {
                     entryID: local.id,
                     title: result.title,
                     fields: conflictingFields,
-                    winner: remoteIsNewer ? .remote : .local
+                    winner: newerSide
                 )
             )
         }
         return result
     }
 
-    enum Pick<Value> {
-        case value(Value)
-        case conflict(Value)
-
-        var value: Value {
-            switch self {
-            case .value(let value), .conflict(let value): value
-            }
-        }
+    /// Tags, icons and custom data: changed on both sides, these follow the
+    /// newer side without being reported.
+    func mergeUnreportedProperties(into result: inout Entry, local: Entry, remote: Entry, base: Entry) {
+        let remoteIsNewer = remote.times.lastModification > local.times.lastModification
+        func newer<Value>(_ local: Value, _ remote: Value) -> Value { remoteIsNewer ? remote : local }
+        result.tags = pick(local.tags, remote.tags, base: base.tags) ?? newer(local.tags, remote.tags)
+        result.customData =
+            pick(local.customData, remote.customData, base: base.customData)
+            ?? newer(local.customData, remote.customData)
+        result.iconID = pick(local.iconID, remote.iconID, base: base.iconID) ?? newer(local.iconID, remote.iconID)
+        result.extras = pick(local.extras, remote.extras, base: base.extras) ?? newer(local.extras, remote.extras)
+        result.customIconID =
+            pick(local.customIconID, remote.customIconID, base: base.customIconID)
+            ?? newer(local.customIconID, remote.customIconID)
     }
 
-    func pick<Value: Equatable>(
-        _ local: Value,
-        _ remote: Value,
-        base: Value,
-        remoteIsNewer: Bool
-    ) -> Pick<Value> {
-        if local == remote { return .value(local) }
-        if local == base { return .value(remote) }
-        if remote == base { return .value(local) }
-        return .conflict(remoteIsNewer ? remote : local)
+    /// The value both sides agree on or that only one side changed since
+    /// `base`; nil when they changed it differently.
+    func pick<Value: Equatable>(_ local: Value, _ remote: Value, base: Value) -> Value? {
+        if local == remote { return local }
+        if local == base { return remote }
+        if remote == base { return local }
+        return nil
     }
 
     func mergedTimes(_ local: Times, _ remote: Times) -> Times {
