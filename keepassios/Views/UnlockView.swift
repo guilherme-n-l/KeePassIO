@@ -31,6 +31,9 @@ struct UnlockView: View {
     /// the app has been in the background.
     @State private var didOfferQuickUnlock = false
     @State private var isQuickUnlocking = false
+    /// The file is gone (moved or deleted): unlocking can't work until
+    /// the user locates it or restores a copy.
+    @State private var isFileMissing = false
 
     var body: some View {
         Form {
@@ -105,6 +108,9 @@ struct UnlockView: View {
                         .accessibilityIdentifier("unlock.error")
                 }
             }
+            if isFileMissing {
+                MissingFileSection(reference: reference)
+            }
             Section {
                 Button(action: unlock) {
                     HStack {
@@ -131,6 +137,19 @@ struct UnlockView: View {
         }
         .onDisappear {
             model.lockedByUser.remove(reference.id)
+        }
+        .onChange(of: reference.bookmark) {
+            isFileMissing = model.isFileMissing(reference)
+        }
+        .onChange(of: session.state, initial: true) { _, state in
+            switch state {
+            case .failed(.file(.notFound)), .failed(.file(.accessDenied)):
+                isFileMissing = true
+            case .failed, .locked:
+                isFileMissing = model.isFileMissing(reference)
+            case .unlocking, .unlocked:
+                break
+            }
         }
         .task {
             // Face ID doesn't need the key file (the stored key includes

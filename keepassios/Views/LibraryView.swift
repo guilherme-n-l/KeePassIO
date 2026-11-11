@@ -161,17 +161,6 @@ struct LibraryView: View {
             } message: { _ in
                 Text("The file itself stays where it is in the Files app.")
             }
-            .alert(
-                "Something Went Wrong",
-                isPresented: Binding(
-                    get: { model.errorMessage != nil },
-                    set: { if !$0 { model.errorMessage = nil } }
-                )
-            ) {
-                Button("OK", role: .cancel) {}
-            } message: {
-                Text(model.errorMessage ?? "")
-            }
             .onChange(of: model.quickCreateRequested) { _, requested in
                 guard requested else { return }
                 let target = model.settings.quickCreateDatabaseID ?? model.databases.first?.id
@@ -193,6 +182,19 @@ struct LibraryView: View {
                 }
             }
         )
+        // On the stack, not its root content, so errors from a database on
+        // screen, such as a failed save, show there too.
+        .alert(
+            "Something Went Wrong",
+            isPresented: Binding(
+                get: { model.errorMessage != nil },
+                set: { if !$0 { model.errorMessage = nil } }
+            )
+        ) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(model.errorMessage ?? "")
+        }
     }
 }
 

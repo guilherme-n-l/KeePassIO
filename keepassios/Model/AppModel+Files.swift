@@ -64,10 +64,9 @@ extension AppModel {
         return count
     }
 
-    /// Locks every open database (saving changes first). Does nothing,
-    /// and leaves navigation alone, when none is open.
-    /// Brings in entries AutoFill saved while it couldn't reach the
-    /// database file, then deletes its copy once they're saved here.
+    /// Brings in changes kept on this device while the database file
+    /// couldn't be reached, by AutoFill or by a failed save here, then
+    /// deletes the kept copy once they're saved to the file.
     func mergePendingChanges(for id: UUID, into session: DatabaseSession) async {
         guard let pending = SharedFiles.pendingChanges(for: id),
             FileManager.default.fileExists(atPath: pending.url.path)
@@ -79,7 +78,9 @@ extension AppModel {
                 try? FileManager.default.removeItem(at: pending.url)
             }
         } catch {
-            errorMessage = String(localized: "Changes made in AutoFill couldn't be merged: \(error.userMessage)")
+            errorMessage = String(
+                localized: "Changes kept on this device couldn't be added to the database: \(error.userMessage)"
+            )
         }
     }
 }

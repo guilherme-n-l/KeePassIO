@@ -68,13 +68,25 @@
             return try result.get()
         }
 
+        /// Whether the file is gone: deleted, or moved where the bookmark
+        /// can't follow. A file that merely isn't downloaded still exists.
+        public var isMissing: Bool {
+            (try? resolve()) == nil
+        }
+
         private func resolve() throws(FileError) -> URL {
             var stale = false
+            let url: URL
             do {
-                return try URL(resolvingBookmarkData: bookmark, bookmarkDataIsStale: &stale)
+                url = try URL(resolvingBookmarkData: bookmark, bookmarkDataIsStale: &stale)
             } catch {
                 throw .notFound
             }
+            // Bookmarks follow a file when it moves, including into the
+            // trash ("Recently Deleted" in Files), where it would be read
+            // and saved until the trash is emptied and then vanish.
+            guard !url.pathComponents.contains(".Trash") else { throw .notFound }
+            return url
         }
 
         private static func modificationDate(of url: URL) -> Date? {

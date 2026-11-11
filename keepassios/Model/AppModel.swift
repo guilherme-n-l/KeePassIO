@@ -27,6 +27,9 @@ final class AppModel {
     /// Bumped whenever databases are locked, so the library can close
     /// the screens that showed their contents.
     private(set) var lockCount = 0
+    /// Databases whose file couldn't be reached at the last save. Their
+    /// changes are kept on this device until the file is back.
+    var unreachableDatabases: Set<UUID> = []
 
     private let store: AppStateStore
     let codec: any DatabaseCodec
@@ -156,6 +159,25 @@ final class AppModel {
         }
     }
 
+    /// Points a database at the place its file is now, keeping its name
+    /// in the library, its key file and Face ID. The database starts
+    /// over locked, reading the new file.
+    func relocateDatabase(_ id: UUID, to url: URL) async {
+        do {
+            let bookmark = try BookmarkedFile.makeBookmark(for: url)
+            let name = url.deletingPathExtension().lastPathComponent
+            sessions[id]?.lock()
+            sessions[id] = nil
+            unreachableDatabases.remove(id)
+            try await updateReference(id) {
+                $0.bookmark = bookmark
+                $0.displayName = name
+            }
+        } catch {
+            errorMessage = String(localized: "Couldn't use that file: \(error.localizedDescription)")
+        }
+    }
+
     func removeDatabase(_ id: UUID) async {
         QuickUnlock.remove(for: id)
         SharedFiles.removeDatabaseCache(for: id)
@@ -182,32 +204,29 @@ final class AppModel {
         return CachedDatabaseFile(original: file, cache: cache, fallsBackToCache: false)
     }
 
+    /// Changes one database in the library, if it is still there.
+    private func updateReference(
+        _ id: UUID,
+        _ change: @escaping @Sendable (inout DatabaseReference) -> Void
+    ) async throws {
+        state = try await store.update { state in
+            if let index = state.databases.firstIndex(where: { $0.id == id }) {
+                change(&state.databases[index])
+            }
+        }
+    }
+
     /// Remembers (or, with nil, forgets) which key file a database uses.
     func setKeyFileBookmark(_ bookmark: Data?, for id: UUID) async {
-        state =
-            (try? await store.update { state in
-                if let index = state.databases.firstIndex(where: { $0.id == id }) {
-                    state.databases[index].keyFileBookmark = bookmark
-                }
-            }) ?? state
+        try? await updateReference(id) { $0.keyFileBookmark = bookmark }
     }
 
     func markOpened(_ id: UUID) async {
-        state =
-            (try? await store.update { state in
-                if let index = state.databases.firstIndex(where: { $0.id == id }) {
-                    state.databases[index].lastOpened = Date()
-                }
-            }) ?? state
+        try? await updateReference(id) { $0.lastOpened = Date() }
     }
 
     func setQuickUnlock(_ enabled: Bool, for id: UUID) async {
-        state =
-            (try? await store.update { state in
-                if let index = state.databases.firstIndex(where: { $0.id == id }) {
-                    state.databases[index].quickUnlockEnabled = enabled
-                }
-            }) ?? state
+        try? await updateReference(id) { $0.quickUnlockEnabled = enabled }
     }
 
     /// Locks a database because the user asked to.
@@ -221,12 +240,7 @@ final class AppModel {
 
     func rename(_ id: UUID, to alias: String) async {
         let trimmed = alias.trimmingCharacters(in: .whitespacesAndNewlines)
-        state =
-            (try? await store.update { state in
-                if let index = state.databases.firstIndex(where: { $0.id == id }) {
-                    state.databases[index].alias = trimmed.isEmpty ? nil : trimmed
-                }
-            }) ?? state
+        try? await updateReference(id) { $0.alias = trimmed.isEmpty ? nil : trimmed }
     }
 
     func setQuickCreateDatabase(_ id: UUID?) async {
@@ -297,7 +311,11 @@ final class AppModel {
                 try await session.save()
                 passes += 1
             }
+            if let id = id(of: session) {
+                unreachableDatabases.remove(id)
+            }
         } catch {
+            if error.isUnreachableFile, await keepChanges(of: session) { return }
             errorMessage = String(
                 localized: "Your latest changes couldn't be saved: \(error.userMessage)"
             )

@@ -212,6 +212,20 @@ public final class DatabaseSession {
         }
     }
 
+    /// Writes the open database, encrypted as it would be saved, to
+    /// another file. The session doesn't change: edits stay unsaved and
+    /// the next `save()` still goes to the database's own file. Used to
+    /// keep edits safe while that file can't be reached.
+    public func writeCopy(to copy: any DatabaseFile) async throws(SessionError) {
+        guard let database, let key, let settings else { throw .locked }
+        do {
+            let data = try await codec.encode(database, settings: settings, key: key, context: formatContext)
+            _ = try await copy.write(data, expecting: nil)
+        } catch {
+            throw SessionError(error)
+        }
+    }
+
     /// Reads the file and merges it into the open database without saving.
     /// Used when the app learns the file changed (or an extension left a
     /// pending working copy).
@@ -333,6 +347,18 @@ public enum SessionError: Error, Equatable, Sendable {
             case .keyDerivationTooExpensive(let memory): self = .keyDerivationTooExpensive(memoryBytes: memory)
             }
         default: self = .other(String(describing: type(of: error)))
+        }
+    }
+}
+
+extension SessionError {
+    /// Whether the database's file couldn't be reached at all: missing,
+    /// no longer permitted, or failing to read or write. Nothing is wrong
+    /// with the database itself, so a copy kept elsewhere is still good.
+    public var isUnreachableFile: Bool {
+        switch self {
+        case .file(.notFound), .file(.accessDenied), .file(.ioFailure): true
+        default: false
         }
     }
 }
