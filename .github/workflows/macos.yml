@@ -51,6 +51,9 @@ jobs:
   app:
     name: Build and test the app
     runs-on: macos-26
+    # Well above a normal run; without it a hung simulator would hold the
+    # runner for six hours.
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -64,16 +67,31 @@ jobs:
       - name: Test core packages on macOS
         run: swift test --package-path Packages/KeePassCore
 
-      - name: Build and test the app on a simulator
+      - name: Boot the simulator
         run: |
           device="$(xcrun simctl list devices available --json \
             | python3 -c 'import json,sys; d=json.load(sys.stdin)["devices"]; print(next(x["udid"] for r in sorted(d, reverse=True) if "iOS" in r for x in d[r] if x["name"].startswith("iPhone")))')"
+          echo "DEVICE=$device" >> "$GITHUB_ENV"
+          xcrun simctl boot "$device"
+          xcrun simctl bootstatus "$device" -b
+
+      - name: Build and test the app on a simulator
+        # On the booted simulator, one test at a time. With parallel
+        # testing, xcodebuild first cloned the simulator twice and booted
+        # the clones, which took 14 to 22 minutes on the hosted runner,
+        # longer than running every test in turn.
+        #
+        # testLaunchPerformance only records launch times: with no
+        # baseline it can't fail, and it took over a minute.
+        run: |
           xcodebuild test \
             -project keepassios.xcodeproj \
             -scheme keepassios \
-            -destination "id=$device" \
+            -destination "id=$DEVICE" \
             -resultBundlePath TestResults.xcresult \
+            -parallel-testing-enabled NO \
             -skip-testing:keepassiosUITests/ScreenshotTests \
+            -skip-testing:keepassiosUITests/KeePassIOUITests/testLaunchPerformance \
             CODE_SIGNING_ALLOWED=NO
 
       - name: Show test failures
@@ -113,6 +131,7 @@ jobs:
     # here; scripts/release.sh signs and uploads, on the owner's Mac or
     # from the TestFlight workflow.
     runs-on: macos-26
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 

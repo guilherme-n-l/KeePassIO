@@ -20,8 +20,30 @@ jobs:
   core:
     name: Lint, test and profile core packages
     runs-on: ubuntu-24.04
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # A pull request is checked out as a merge commit; its first
+          # parent is the base, for finding what the pull request changes.
+          fetch-depth: 2
+
+      - name: Find what changed
+        id: changes
+        env:
+          EVENT: ${{ github.event_name }}
+        run: |
+          # The vendored KDBXKit tests take most of this job's time, and
+          # only KDBXKit itself or the toolchain can break them. Pull
+          # requests that touch neither skip them; main and manual runs
+          # always run them.
+          kdbxkit=true
+          if [ "$EVENT" = pull_request ] \
+            && ! git diff --name-only HEAD^1 HEAD \
+              | grep -qE '^(Vendor/KDBXKit/|scripts/setup-linux-toolchain\.sh$|\.github/workflows/linux\.yml$)'; then
+            kdbxkit=false
+          fi
+          echo "kdbxkit=$kdbxkit" | tee -a "$GITHUB_OUTPUT"
 
       - name: Install Swift, swift-format, SwiftLint, ShellCheck and bpftrace
         run: sudo scripts/setup-linux-toolchain.sh
@@ -45,6 +67,7 @@ jobs:
         run: swift test --package-path Packages/KeePassCore
 
       - name: Test vendored KDBXKit
+        if: steps.changes.outputs.kdbxkit == 'true'
         run: swift test --package-path Vendor/KDBXKit
         env:
           KDBXKIT_REQUIRE_INTEROP: "1"
