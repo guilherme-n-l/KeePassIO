@@ -12,11 +12,14 @@
   <a href="https://github.com/guilherme-n-l/KeePassIO/actions/workflows/macos.yml"><img src="https://github.com/guilherme-n-l/KeePassIO/actions/workflows/macos.yml/badge.svg" alt="macOS CI"></a>
   <a href="https://github.com/guilherme-n-l/KeePassIO/actions/workflows/linux.yml"><img src="https://github.com/guilherme-n-l/KeePassIO/actions/workflows/linux.yml/badge.svg" alt="Linux CI"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-4FA34F" alt="MIT license"></a>
+  <a href="https://apps.apple.com/app/id6819653234"><img src="https://img.shields.io/badge/App_Store-download-4FA34F?logo=apple" alt="Download on the App Store"></a>
   <img src="https://img.shields.io/badge/iOS-18%2B-4FA34F" alt="iOS 18 or later">
   <a href="https://github.com/sponsors/guilherme-n-l"><img src="https://img.shields.io/badge/sponsor-%E2%99%A5-4FA34F" alt="Sponsor"></a>
 </p>
 
-> **Status:** early development. Not on the App Store yet.
+<p align="center">
+  <a href="https://apps.apple.com/app/id6819653234">Download on the App Store</a>
+</p>
 
 ## Features
 
