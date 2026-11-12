@@ -64,6 +64,10 @@ final class AutoFillModel {
     /// unlock screen (and offer Face ID) while it closes.
     private(set) var isFinished = false
     private(set) var loadError: String?
+    /// Whether the entry picked next gets linked to the app being filled
+    /// (an `iOSApp` field), so it is suggested first there afterwards.
+    /// Off unless the user turns it on.
+    var remembersChoice = false
 
     private let codec = KDBXCodec()
     private let complete: (Completion) -> Void
@@ -137,14 +141,6 @@ final class AutoFillModel {
         services.first { $0.kind == .app }
     }
 
-    /// Entries for the app or website being filled, best match first.
-    var suggestions: [Entry] {
-        guard let database = session?.database else { return [] }
-        return AutoFillMatcher.matches(for: services, in: database).compactMap { match in
-            database.entry(withID: match.entryID).flatMap { fits($0) ? $0 : nil }
-        }
-    }
-
     /// Every usable entry, or the search results for `query`.
     func entries(matching query: String) -> [Entry] {
         guard let session, let database = session.database else { return [] }
@@ -157,7 +153,7 @@ final class AutoFillModel {
         return hits.compactMap { database.entry(withID: $0.entryID) }.filter(fits)
     }
 
-    private func fits(_ entry: Entry) -> Bool {
+    func fits(_ entry: Entry) -> Bool {
         switch mode {
         case .password: !entry.password.isEmpty || !entry.userName.isEmpty
         case .oneTimeCode: Self.otp(of: entry) != nil
@@ -242,6 +238,14 @@ final class AutoFillModel {
     }
 
     func choose(_ entry: Entry) {
+        if remembersChoice, let app, mode == .password || mode == .oneTimeCode {
+            remembersChoice = false
+            Task {
+                await link(entry, to: app)
+                choose(entry)
+            }
+            return
+        }
         let completion: Completion
         switch mode {
         case .password:
