@@ -13,19 +13,31 @@ import Observation
 @MainActor
 @Observable
 final class AutoFillModel {
-    enum Mode {
+    enum Mode: Equatable {
         case password
         case oneTimeCode
         /// Any field, from the AutoFill menu of a text field iOS doesn't
         /// recognize as a login (a confirm-password or an unlabeled code
         /// field): the user picks an entry, then which of its values to type.
         case text
+        /// Saving a password iOS offers to save (iOS 26.2 and later),
+        /// typed into a website or, with its app ID and name, an app.
+        case save(SaveRequest)
+    }
+
+    /// A password iOS asks to save.
+    struct SaveRequest: Equatable {
+        let user: String
+        let password: String
+        /// A name for the credential, when the form gave one.
+        let title: String?
     }
 
     enum Completion {
         case password(user: String, password: String)
         case oneTimeCode(String)
         case text(String)
+        case saved
         case cancelled
     }
 
@@ -121,7 +133,7 @@ final class AutoFillModel {
     }
 
     /// The app iOS says is asking, when it says.
-    private var app: AutoFillService? {
+    var app: AutoFillService? {
         services.first { $0.kind == .app }
     }
 
@@ -150,6 +162,7 @@ final class AutoFillModel {
         case .password: !entry.password.isEmpty || !entry.userName.isEmpty
         case .oneTimeCode: Self.otp(of: entry) != nil
         case .text: !insertableFields(of: entry).isEmpty
+        case .save: true
         }
     }
 
@@ -240,6 +253,9 @@ final class AutoFillModel {
         case .text:
             // Text requests pick a field first; see `insert(_:)`.
             return
+        case .save:
+            // Save requests update an entry or add one; see `update(_:)`.
+            return
         }
         finish(completion)
     }
@@ -251,7 +267,7 @@ final class AutoFillModel {
     /// Answers the request first, then locks: locking changes what the
     /// sheet shows, and nothing should change on screen before iOS has the
     /// answer.
-    private func finish(_ completion: Completion) {
+    func finish(_ completion: Completion) {
         isFinished = true
         complete(completion)
         session?.lock()
@@ -317,9 +333,10 @@ final class AutoFillModel {
         if let groupID {
             rememberGroup(groupID)
         }
-        if mode == .password {
-            choose(entry)
+        switch mode {
+        case .password: choose(entry)
+        case .save: finish(.saved)
+        case .oneTimeCode, .text: break
         }
     }
-
 }
