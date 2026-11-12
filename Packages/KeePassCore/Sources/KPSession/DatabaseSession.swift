@@ -127,62 +127,6 @@ public final class DatabaseSession {
 
     // MARK: Editing
 
-    public func addEntry(_ entry: Entry, to groupID: UUID? = nil) throws(SessionError) {
-        try edit { database in
-            try database.add(entry, to: groupID ?? database.root.id)
-        }
-    }
-
-    public func updateEntry(_ entry: Entry) throws(SessionError) {
-        let now = clock()
-        try edit { database in try database.update(entry, at: now) }
-    }
-
-    public func deleteEntry(_ id: UUID) throws(SessionError) {
-        let now = clock()
-        try edit { database in try database.deleteEntry(id, at: now) }
-    }
-
-    public func moveEntry(_ id: UUID, to groupID: UUID) throws(SessionError) {
-        let now = clock()
-        try edit { database in try database.moveEntry(id, to: groupID, at: now) }
-    }
-
-    /// Moves a group (with everything in it) under another group. Moving
-    /// a group into itself or its own subgroups is refused.
-    public func moveGroup(_ id: UUID, to parentID: UUID) throws(SessionError) {
-        let now = clock()
-        try edit { database in try database.moveGroup(id, to: parentID, at: now) }
-    }
-
-    public func addGroup(_ group: Group, to parentID: UUID? = nil) throws(SessionError) {
-        try edit { database in try database.add(group, to: parentID ?? database.root.id) }
-    }
-
-    public func updateGroup(_ group: Group) throws(SessionError) {
-        let now = clock()
-        try edit { database in try database.updateGroupProperties(group, at: now) }
-    }
-
-    public func deleteGroup(_ id: UUID) throws(SessionError) {
-        let now = clock()
-        try edit { database in try database.deleteGroup(id, at: now) }
-    }
-
-    public func emptyRecycleBin() throws(SessionError) {
-        let now = clock()
-        try edit { database in database.emptyRecycleBin(at: now) }
-    }
-
-    /// Creates an entry stamped with the current time.
-    public func newEntry(title: String = "", userName: String = "", password: SecretString = .empty) -> Entry {
-        var entry = Entry(times: Times(creation: clock()))
-        entry.title = title
-        entry.userName = userName
-        entry.password = password
-        return entry
-    }
-
     /// Applies a change to the open database and marks it unsaved.
     func edit(_ change: (inout Database) throws -> Void) throws(SessionError) {
         guard var database else { throw .locked }
@@ -209,8 +153,6 @@ public final class DatabaseSession {
             try await mergeFromDisk(key: key)
             guard let merged = self.database else { throw .locked }
             try await write(merged, key: key, settings: settings)
-        } catch {
-            throw error
         }
     }
 
@@ -242,9 +184,7 @@ public final class DatabaseSession {
         guard let database else { throw .locked }
         let result = Merger.merge(local: database, remote: other, base: base)
         lastMergeReport = result.report
-        guard !result.report.isEmpty else { return }
-        install(result.merged)
-        hasUnsavedChanges = true
+        adopt(result)
     }
 
     /// Merges in another copy of this database (same master key), such as
@@ -260,9 +200,7 @@ public final class DatabaseSession {
         // database's own deletion records.
         let result = Merger.merge(local: database, remote: remote, base: nil)
         lastMergeReport = result.report
-        guard !result.report.isEmpty else { return }
-        install(result.merged)
-        hasUnsavedChanges = true
+        adopt(result)
     }
 
     /// Forgets the report of the last automatic merge, once the user has
@@ -301,9 +239,7 @@ public final class DatabaseSession {
     ) throws(SessionError) -> MergeReport {
         guard let database else { throw .locked }
         let result = Merger.merge(local: database, remote: preview.remote, base: nil, choices: choices)
-        guard !result.report.isEmpty else { return result.report }
-        install(result.merged)
-        hasUnsavedChanges = true
+        adopt(result)
         return result.report
     }
 
@@ -324,8 +260,6 @@ public final class DatabaseSession {
             base = decoded.database
             fileVersion = version
             hasUnsavedChanges = true
-        } catch let error as SessionError {
-            throw error
         } catch {
             throw SessionError(error)
         }
@@ -349,6 +283,14 @@ public final class DatabaseSession {
         } catch {
             throw SessionError(error)
         }
+    }
+
+    /// Takes the result of a merge as the open database, unsaved, unless
+    /// the merge changed nothing.
+    private func adopt(_ result: MergeResult) {
+        guard !result.report.isEmpty else { return }
+        install(result.merged)
+        hasUnsavedChanges = true
     }
 
     private func install(_ database: Database) {
@@ -378,45 +320,4 @@ public enum IconChoice: Sendable, Equatable {
     /// A new custom icon (PNG data), added to the database; identical
     /// data already there is reused.
     case newCustom(Data)
-}
-
-public enum SessionError: Error, Equatable, Sendable {
-    case locked
-    case emptyKey
-    case invalidKey
-    case unsupportedFormat(String)
-    case corrupted(String)
-    case keyDerivationTooExpensive(memoryBytes: UInt64)
-    case changedOnDisk(FileVersion)
-    case file(FileError)
-    case edit(EditError)
-    case other(String)
-
-    init(_ error: any Error) {
-        switch error {
-        case let error as SessionError: self = error
-        case let error as FileError: self = .file(error)
-        case let error as EditError: self = .edit(error)
-        case let error as CodecError:
-            switch error {
-            case .invalidKey: self = .invalidKey
-            case .unsupportedFormat(let detail): self = .unsupportedFormat(detail)
-            case .corrupted(let detail): self = .corrupted(detail)
-            case .keyDerivationTooExpensive(let memory): self = .keyDerivationTooExpensive(memoryBytes: memory)
-            }
-        default: self = .other(String(describing: type(of: error)))
-        }
-    }
-}
-
-extension SessionError {
-    /// Whether the database's file couldn't be reached at all: missing,
-    /// no longer permitted, or failing to read or write. Nothing is wrong
-    /// with the database itself, so a copy kept elsewhere is still good.
-    public var isUnreachableFile: Bool {
-        switch self {
-        case .file(.notFound), .file(.accessDenied), .file(.ioFailure): true
-        default: false
-        }
-    }
 }
