@@ -53,4 +53,13 @@ struct AppLinksTests {
         #expect(AppID.same("ABCDE12345.com.Example.App", "com.example.app"))
         #expect(!AppID.same("com.example.app", "com.example.other"))
     }
+
+    @Test func appFieldNames() {
+        for name in ["iOSApp", "iosapp", "iOSApp_1", "iOSApp_12", "AndroidApp", "ANDROIDAPP_2"] {
+            #expect(Entry.isAppField(name), "\(name)")
+        }
+        for name in ["iOSApp_", "iOSApp_x", "iOSApps", "AndroidAppName", "URL", "KP2A_URL_1"] {
+            #expect(!Entry.isAppField(name), "\(name)")
+        }
+    }
 }

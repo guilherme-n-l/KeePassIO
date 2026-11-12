@@ -37,7 +37,27 @@ struct EntryDetailView: View {
                         }
                     }
                 }
-                let customFields = Self.displayedCustomFields(of: entry)
+                let appFields = entry.customFieldNames.filter(Entry.isAppField)
+                if !appFields.isEmpty {
+                    Section {
+                        ForEach(appFields, id: \.self) { name in
+                            let value = entry.fields[name]?.reveal() ?? ""
+                            field(
+                                name,
+                                label: Self.appLabel(for: name),
+                                value: AppID.bundleID(of: value),
+                                sensitive: false
+                            )
+                        }
+                    } header: {
+                        Text("Apps")
+                    } footer: {
+                        Text("AutoFill uses these to suggest this entry in apps.")
+                    }
+                }
+                // App links have their own section here; the editor lists
+                // them with the other fields.
+                let customFields = Self.displayedCustomFields(of: entry).filter { !Entry.isAppField($0) }
                 if !customFields.isEmpty {
                     Section("Fields") {
                         ForEach(customFields, id: \.self) { name in
@@ -122,10 +142,15 @@ struct EntryDetailView: View {
         }
     }
 
-    /// Custom fields shown in the Fields section; OTP settings are shown
+    /// Custom fields shown and edited as fields; OTP settings are shown
     /// as a code instead.
     static func displayedCustomFields(of entry: Entry) -> [String] {
         entry.customFieldNames.filter { !OTP.isSettingsField($0) }
+    }
+
+    /// "iOS App" or "Android App" for an app link field.
+    private static func appLabel(for name: String) -> LocalizedStringKey {
+        name.lowercased().hasPrefix(Entry.AppField.android.lowercased()) ? "Android App" : "iOS App"
     }
 
     private func field(_ key: String, label: LocalizedStringKey, value: String, sensitive: Bool) -> some View {
