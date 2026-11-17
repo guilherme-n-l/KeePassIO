@@ -85,8 +85,11 @@ public struct SearchIndex: Sendable {
                 let groupPath = path.dropFirst().map { Self.normalize(names[$0] ?? "") }
                 let groupIDs = Set(path)
                 for entry in group.entries {
+                    // Searched by the values references point to, as in
+                    // KeePassXC, since those are what the list shows.
+                    let shown = database.resolvingReferences(in: entry)
                     documents.append(
-                        Self.document(for: entry, group: group, groupPath: groupPath, groupIDs: groupIDs)
+                        Self.document(for: shown, group: group, groupPath: groupPath, groupIDs: groupIDs)
                     )
                 }
             }
