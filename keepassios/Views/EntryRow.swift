@@ -105,18 +105,18 @@ struct EntryRow: View {
     let database: Database?
     var groupName: String?
 
-    private var title: String { entry.title }
-    private var userName: String { entry.userName }
-
     var body: some View {
         HStack(spacing: 12) {
             ItemIcon(entry: entry, in: database)
-            details
+            details(database?.resolvingReferences(in: entry) ?? entry)
         }
     }
 
-    private var details: some View {
-        VStack(alignment: .leading, spacing: 2) {
+    /// The title and user name, with references to other entries resolved.
+    private func details(_ shown: Entry) -> some View {
+        let title = shown.title
+        let userName = shown.userName
+        return VStack(alignment: .leading, spacing: 2) {
             Text(title.isEmpty ? String(localized: "Untitled") : title)
                 .font(.body)
             HStack(spacing: 4) {

@@ -117,13 +117,16 @@ final class AutoFillModel {
     }
 
     /// Entries for the website being filled, best match first.
+    ///
+    /// Entries here and below come with their field references resolved:
+    /// AutoFill shows and fills the values, never edits these copies.
     var suggestions: [Entry] {
         guard let database = session?.database else { return [] }
         var seen = Set<UUID>()
         var result: [Entry] = []
         for identifier in serviceIdentifiers {
             for match in URLMatcher.matches(for: identifier, in: database) where seen.insert(match.entryID).inserted {
-                if let entry = database.entry(withID: match.entryID), fits(entry) {
+                if let entry = database.entry(withID: match.entryID).map(database.resolvingReferences), fits(entry) {
                     result.append(entry)
                 }
             }
@@ -135,12 +138,12 @@ final class AutoFillModel {
     func entries(matching query: String) -> [Entry] {
         guard let session, let database = session.database else { return [] }
         if query.isEmpty {
-            return database.activeEntries.filter(fits).sorted {
+            return database.activeEntries.map(database.resolvingReferences).filter(fits).sorted {
                 $0.title.localizedStandardCompare($1.title) == .orderedAscending
             }
         }
         let hits = session.searchIndex?.search(query, limit: 200) ?? []
-        return hits.compactMap { database.entry(withID: $0.entryID) }.filter(fits)
+        return hits.compactMap { database.entry(withID: $0.entryID).map(database.resolvingReferences) }.filter(fits)
     }
 
     private func fits(_ entry: Entry) -> Bool {
@@ -213,7 +216,9 @@ final class AutoFillModel {
             let time = TimeInterval(saved[2]),
             Date().timeIntervalSince1970 - time < Self.justFilledWindow
         else { return nil }
-        return database.entry(withID: entryID).flatMap { $0.password.isEmpty ? nil : $0 }
+        return database.entry(withID: entryID).map(database.resolvingReferences).flatMap {
+            $0.password.isEmpty ? nil : $0
+        }
     }
 
     /// Inserts the password of the entry just filled, for its

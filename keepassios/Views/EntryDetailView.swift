@@ -23,7 +23,10 @@ struct EntryDetailView: View {
     private var entry: Entry? { session.database?.entry(withID: entryID) }
 
     var body: some View {
-        if let entry {
+        if let stored = entry {
+            // Fields that refer to another entry show and copy its values;
+            // the editor gets the stored references.
+            let entry = session.database?.resolvingReferences(in: stored) ?? stored
             List {
                 Section {
                     field(Entry.StandardField.userName, label: "User Name", value: entry.userName, sensitive: false)
@@ -103,7 +106,7 @@ struct EntryDetailView: View {
             }
             .sheet(isPresented: $isEditing) {
                 NavigationStack {
-                    EntryEditorView(session: session, entry: entry, isNew: false, groupID: nil)
+                    EntryEditorView(session: session, entry: stored, isNew: false, groupID: nil)
                 }
             }
             .overlay(alignment: .bottom) {

@@ -339,26 +339,28 @@ extension GroupView {
     /// The long-press menu of an entry.
     @ViewBuilder
     func quickActions(for entry: Entry) -> some View {
-        if !entry.userName.isEmpty {
-            Button("Copy User Name", systemImage: "person") { copy(entry.userName, sensitive: false) }
+        // Copies the values references point to; edits keep the references.
+        let shown = session.database?.resolvingReferences(in: entry) ?? entry
+        if !shown.userName.isEmpty {
+            Button("Copy User Name", systemImage: "person") { copy(shown.userName, sensitive: false) }
         }
-        if !entry.password.isEmpty {
-            Button("Copy Password", systemImage: "key") { copy(entry.password.reveal(), sensitive: true) }
+        if !shown.password.isEmpty {
+            Button("Copy Password", systemImage: "key") { copy(shown.password.reveal(), sensitive: true) }
                 .accessibilityIdentifier("entryMenu.copyPassword")
         }
-        if let otp = try? OTP(fields: entry.fields.mapValues { $0.reveal() }) {
+        if let otp = try? OTP(fields: shown.fields.mapValues { $0.reveal() }) {
             Button("Copy One-Time Code", systemImage: "clock.badge.checkmark") {
                 copy(otp.code(at: Date()), sensitive: true)
             }
         }
-        if let url = WebsiteIcon.openableURL(for: entry.url) {
+        if let url = WebsiteIcon.openableURL(for: shown.url) {
             Button("Open Website", systemImage: "safari") { openURL(url) }
         }
         Divider()
         Button("Edit", systemImage: "pencil") { editingExistingEntry = entry }
         Button("Move To…", systemImage: "folder") { moving = DraggedItem(kind: .entry, id: entry.id) }
         Button("Change Icon…", systemImage: "photo") { iconTarget = .entry(entry.id) }
-        if model.settings.mayDownloadFavicons, !entry.url.isEmpty {
+        if model.settings.mayDownloadFavicons, !shown.url.isEmpty {
             Button("Download Icon", systemImage: "photo.badge.arrow.down") {
                 Task { await model.downloadIcons(for: [entry.id], in: session) }
             }
