@@ -20,6 +20,7 @@ Each patch is its own commit in this repository, touching only this directory; `
 | Public `KDBX.AutoType.Association.init(window:keystrokeSequence:)` | Auto-type associations couldn't be created outside the library |
 | Preserve unknown XML elements (`KDBX.UnknownElement`, `unknownElements` on KDBX, Meta, Root, Group, Entry) and write them back | Elements written by other clients, plugins or newer format revisions were silently dropped on save. Limits: elements nested inside Times/AutoType/CustomData are still dropped; a `Protected="True"` value inside an unknown element is written back as its old ciphertext, which no longer decrypts after the inner-stream key changes on save |
 | XML key files: version 1.0 `<Data>` is base64, version 2.0 (`.keyx`) is grouped hex, chosen by `<Meta><Version>` | Upstream had the two swapped, so KeePassXC/KeePass 2.47+ `.keyx` files silently fell back to hashing the whole file and every database using one reported a wrong key |
+| XML `<UUID>` values (entries, groups, icons, recycle bin, deleted objects) are read and written as RFC 4122 bytes, not reversed | Every UUID was the byte-reverse of the one KeePass and KeePassXC show. Files round-tripped unchanged, but UUIDs written as text, such as field references (`{REF:P@I:…}`), never matched. Header UUIDs (cipher, KDF) keep their order |
 | Trim indentation from mixed-content text in unknown elements when reading | The writer indents child elements, so text next to them gained more whitespace on every save |
 
 ## Updating
