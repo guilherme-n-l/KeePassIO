@@ -55,7 +55,11 @@ jobs:
         run: nix develop --command true
 
       - name: Install KeePassXC for interop tests
-        run: sudo apt-get install -y -q keepassxc
+        # The runner image's package index goes stale as Ubuntu publishes
+        # security updates, and installing from it then fails with 404s.
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q keepassxc
 
       - name: Lint
         run: scripts/lint.sh
