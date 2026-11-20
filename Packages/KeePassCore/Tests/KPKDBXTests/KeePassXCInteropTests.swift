@@ -103,6 +103,33 @@ struct KeePassXCInteropTests {
         #expect(shown == "alice@example.com")
     }
 
+    /// KeePassXC shows the same entry UUIDs we use, both for entries we
+    /// write and for ones it adds. UUIDs appear as text in field references
+    /// ({REF:P@I:…}) and KeePassXC's browser integration, so the bytes must
+    /// be read in the same order.
+    @Test func entryUUIDsMatchKeePassXCs() async throws {
+        let file = directory.appendingPathComponent("uuids.kdbx")
+        let key = CompositeKey(password: SecretString(password))
+        var database = Database.empty(name: "UUIDs")
+        var ours = Entry()
+        ours.title = "Ours"
+        try database.add(ours, to: database.root.id)
+        try await codec.encode(database, settings: fastSettings, key: key, context: nil).write(to: file)
+
+        func shownUUID(of title: String) throws -> UUID? {
+            let shown = try KeePassXC.run(["show", file.path, title], input: password)
+            let line = shown.split(separator: "\n").first { $0.hasPrefix("Uuid: ") }
+            return line.flatMap { UUID(uuidString: $0.dropFirst("Uuid: {".count).dropLast().description) }
+        }
+        #expect(try shownUUID(of: "Ours") == ours.id)
+
+        _ = try KeePassXC.run(["add", file.path, "Theirs"], input: password)
+        let decoded = try await codec.decode(Data(contentsOf: file), key: key, memoryLimit: nil).database
+        let theirs = try #require(decoded.root.entries.first { $0.title == "Theirs" })
+        #expect(try shownUUID(of: "Theirs") == theirs.id)
+        #expect(decoded.root.entries.contains { $0.id == ours.id })
+    }
+
     @Test func kdbx3FilesAreRejectedBeforeDecrypting() async throws {
         let file = directory.appendingPathComponent("legacy.kdbx")
         // keepassxc-cli db-create writes KDBX 3.1.
