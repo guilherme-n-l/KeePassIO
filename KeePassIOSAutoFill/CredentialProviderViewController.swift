@@ -42,6 +42,30 @@ final class CredentialProviderViewController: ASCredentialProviderViewController
         model.start(.text, services: [])
     }
 
+    /// Saving needs the database unlocked with the master password, so it
+    /// always goes through the sheet. A generated password filled into a
+    /// form that isn't submitted yet isn't saved: iOS asks again when the
+    /// form is sent, and asking the user now would get in the way.
+    @available(iOS 26.2, *)
+    override func performWithoutUserInteractionIfPossible(savePasswordRequest: ASSavePasswordRequest) {
+        let code: ASExtensionError.Code =
+            savePasswordRequest.event == .generatedPasswordFilled ? .userCanceled : .userInteractionRequired
+        extensionContext.cancelRequest(withError: ASExtensionError(code))
+    }
+
+    @available(iOS 26.2, *)
+    override func prepareInterface(for savePasswordRequest: ASSavePasswordRequest) {
+        let credential = savePasswordRequest.credential
+        model.startSave(
+            AutoFillModel.SaveRequest(
+                user: credential.user,
+                password: credential.password,
+                title: savePasswordRequest.title
+            ),
+            for: Self.services([savePasswordRequest.serviceIdentifier])[0]
+        )
+    }
+
     /// Nothing is published to the system's credential identity store, so
     /// every request goes through the picker.
     override func provideCredentialWithoutUserInteraction(for credentialRequest: any ASCredentialRequest) {
@@ -76,6 +100,10 @@ final class CredentialProviderViewController: ASCredentialProviderViewController
             )
         case .text(let text):
             extensionContext.completeRequest(withTextToInsert: text, completionHandler: nil)
+        case .saved:
+            if #available(iOS 26.2, *) {
+                extensionContext.completeSavePasswordRequest(completionHandler: nil)
+            }
         case .cancelled:
             extensionContext.cancelRequest(withError: ASExtensionError(.userCanceled))
         }

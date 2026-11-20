@@ -18,7 +18,11 @@ struct AutoFillView: View {
     var body: some View {
         SwiftUI.Group {
             if isPicking {
-                EntryPickerStack()
+                if case .save(let request) = model.mode {
+                    SavePasswordView(request: request)
+                } else {
+                    EntryPickerStack()
+                }
             } else {
                 NavigationStack {
                     content
