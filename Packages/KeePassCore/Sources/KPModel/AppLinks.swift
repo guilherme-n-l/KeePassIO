@@ -45,15 +45,24 @@ extension Entry {
         return true
     }
 
+    /// Whether a field name holds an app link: `iOSApp` or `AndroidApp`,
+    /// with or without a `_n` suffix, in any case.
+    public static func isAppField(_ name: String) -> Bool {
+        [AppField.iOS, AppField.android].contains { isNumbered(name, base: $0) }
+    }
+
+    /// Whether `name` is `base` or `base_n` for a number n, in any case.
+    private static func isNumbered(_ name: String, base: String) -> Bool {
+        let lower = name.lowercased()
+        let base = base.lowercased()
+        return lower == base || (lower.hasPrefix(base + "_") && Int(lower.dropFirst(base.count + 1)) != nil)
+    }
+
     /// Values of `name` and `name_1`, `name_2`, ... (any case), in that
     /// order, without blanks.
     private static func values(named name: String, in fields: [String: FieldValue]) -> [String] {
-        let base = name.lowercased()
-        return fields.keys
-            .filter { key in
-                let lower = key.lowercased()
-                return lower == base || (lower.hasPrefix(base + "_") && Int(lower.dropFirst(base.count + 1)) != nil)
-            }
+        fields.keys
+            .filter { isNumbered($0, base: name) }
             .sorted { ($0.count, $0) < ($1.count, $1) }
             .compactMap { fields[$0]?.reveal().trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
