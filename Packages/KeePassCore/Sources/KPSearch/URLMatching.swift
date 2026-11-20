@@ -48,6 +48,14 @@ public enum URLMatcher {
     static func host(of text: String) -> String? {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return nil }
+        // Other schemes, such as the androidapp:// links Android KeePass
+        // apps keep in URL fields, name apps, not sites: a package name
+        // read as a host could match an unrelated website.
+        if let scheme = trimmed.range(of: "://").map({ trimmed[..<$0.lowerBound].lowercased() }),
+            !["http", "https"].contains(scheme)
+        {
+            return nil
+        }
         let withScheme = trimmed.contains("://") ? trimmed : "https://" + trimmed
         guard let host = URLComponents(string: withScheme)?.host?.lowercased(), !host.isEmpty else { return nil }
         return host.hasPrefix("www.") ? String(host.dropFirst(4)) : host
