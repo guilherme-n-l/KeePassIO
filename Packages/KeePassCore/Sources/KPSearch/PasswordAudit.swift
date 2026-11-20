@@ -20,7 +20,11 @@ public enum PasswordAudit {
     }
 
     public static func run(on database: Database, at date: Date = Date()) -> [Finding] {
-        let entries = database.activeEntries.filter { !$0.password.isEmpty }
+        // A password that refers to another entry's is that entry's
+        // password, not a reuse; KeePassXC's health check skips it too.
+        let entries = database.activeEntries.filter {
+            !$0.password.isEmpty && !$0.isReference(Entry.StandardField.password)
+        }
         var usage: [SecretString: Int] = [:]
         for entry in entries {
             usage[entry.password, default: 0] += 1
