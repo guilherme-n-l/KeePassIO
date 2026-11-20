@@ -184,4 +184,39 @@ struct FieldReferenceTests {
         #expect(fixture.database.recycleBin?.entries.contains { $0.id == fixture.original.id } == true)
         #expect(fixture.database.resolveReferences(in: "{REF:P@T:Original}") == "hunter2")
     }
+
+    @Test func parsesATextThatIsExactlyOneReference() {
+        #expect(FieldReference(exactly: "{REF:P@T:Original}")?.searchText == "Original")
+        #expect(FieldReference(exactly: "{REF:P@T:Original}!") == nil)
+        #expect(FieldReference(exactly: "x{REF:P@T:Original}") == nil)
+        #expect(FieldReference(exactly: "hunter2") == nil)
+    }
+
+    @Test func passwordSourceFollowsPasswordReferences() throws {
+        var fixture = try makeFixture()
+        let original = fixture.original.id
+        let first = try addEntry(
+            &fixture.database,
+            title: "First",
+            ["Password": .protected(SecretString("{REF:P@I:\(FieldReference.hex(original))}"))]
+        )
+        let second = try addEntry(&fixture.database, title: "Second", ["Password": .protected("{REF:P@T:First}")])
+        #expect(fixture.database.passwordSource(of: second.id) == original)
+        #expect(fixture.database.passwordSource(of: first.id) == original)
+        #expect(fixture.database.passwordSource(of: original) == original)
+    }
+
+    @Test func passwordSourceStopsWhereThereIsNothingToFollow() throws {
+        var database = try makeFixture().database
+        // Not a password reference, text around it, no target, a cycle.
+        let user = try addEntry(&database, title: "User", ["Password": .protected("{REF:U@T:Original}")])
+        let mixed = try addEntry(&database, title: "Mixed", ["Password": .protected("x{REF:P@T:Original}")])
+        let missing = try addEntry(&database, title: "Missing", ["Password": .protected("{REF:P@T:Nobody}")])
+        let a = try addEntry(&database, title: "A", ["Password": .protected("{REF:P@T:B}")])
+        let b = try addEntry(&database, title: "B", ["Password": .protected("{REF:P@T:A}")])
+        #expect(database.passwordSource(of: user.id) == user.id)
+        #expect(database.passwordSource(of: mixed.id) == mixed.id)
+        #expect(database.passwordSource(of: missing.id) == missing.id)
+        #expect(database.passwordSource(of: a.id) == b.id)
+    }
 }

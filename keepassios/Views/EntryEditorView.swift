@@ -102,7 +102,12 @@ struct EntryEditorView: View {
                     }
                 }
                 HStack {
+                    // Field names are identifiers (KP2A_URL_1, AndroidApp,
+                    // iOSApp): autocorrect would turn AndroidApp into
+                    // "Android app".
                     TextField("New Field Name", text: $newFieldName)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
                     Button("Add") {
                         let name = newFieldName.trimmingCharacters(in: .whitespaces)
                         guard !name.isEmpty, entry.fields[name] == nil else { return }

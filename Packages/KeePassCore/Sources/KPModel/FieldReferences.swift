@@ -73,6 +73,12 @@ public struct FieldReference: Sendable, Equatable, Hashable {
     /// The reference as it is stored in a field.
     public var text: String { "{REF:\(wanted.rawValue)@\(searchIn.rawValue):\(searchText)}" }
 
+    /// The reference `text` consists of, if it is exactly one.
+    public init?(exactly text: String) {
+        guard let (reference, end) = Self.parse(text, at: text.startIndex), end == text.endIndex else { return nil }
+        self = reference
+    }
+
     /// True when `text` contains a field reference.
     public static func occurs(in text: String) -> Bool {
         var index = text.startIndex
@@ -227,6 +233,27 @@ extension Database {
         }
         result += text[copied...]
         return result
+    }
+
+    /// The entry whose stored password `entryID`'s password comes from.
+    /// While an entry's password is exactly one reference to a password
+    /// (`{REF:P@…}`), follow it to the entry it finds; stop at the first
+    /// entry whose password is its own, at a reference that finds nothing,
+    /// or on a cycle. KeePassXC saves a changed password there, so entries
+    /// that refer to it keep showing the new one.
+    public func passwordSource(of entryID: UUID) -> UUID {
+        var current = entryID
+        var visited: Set<UUID> = [entryID]
+        while let password = entry(withID: current)?.fields[Entry.StandardField.password]?.reveal(),
+            let reference = FieldReference(exactly: password), reference.wanted == .password
+        {
+            let searchText = resolveReferences(in: reference.searchText, depth: FieldReference.maxDepth - 1)
+            guard let target = firstEntry(where: reference.searchIn, is: searchText),
+                visited.insert(target.id).inserted
+            else { break }
+            current = target.id
+        }
+        return current
     }
 
     private func value(of reference: FieldReference, depth: Int) -> String {

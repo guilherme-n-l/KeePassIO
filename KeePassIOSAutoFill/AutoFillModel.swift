@@ -13,19 +13,31 @@ import Observation
 @MainActor
 @Observable
 final class AutoFillModel {
-    enum Mode {
+    enum Mode: Equatable {
         case password
         case oneTimeCode
         /// Any field, from the AutoFill menu of a text field iOS doesn't
         /// recognize as a login (a confirm-password or an unlabeled code
         /// field): the user picks an entry, then which of its values to type.
         case text
+        /// Saving a password iOS offers to save (iOS 26.2 and later),
+        /// typed into a website or, with its app ID and name, an app.
+        case save(SaveRequest)
+    }
+
+    /// A password iOS asks to save.
+    struct SaveRequest: Equatable {
+        let user: String
+        let password: String
+        /// A name for the credential, when the form gave one.
+        let title: String?
     }
 
     enum Completion {
         case password(user: String, password: String)
         case oneTimeCode(String)
         case text(String)
+        case saved
         case cancelled
     }
 
@@ -35,7 +47,8 @@ final class AutoFillModel {
     static let memoryLimit: UInt64 = 80 << 20
 
     private(set) var mode: Mode = .password
-    private(set) var serviceIdentifiers: [String] = []
+    /// What iOS says is asking: websites, or (from iOS 26.2) an app.
+    private(set) var services: [AutoFillService] = []
     private(set) var databases: [DatabaseReference] = []
     private(set) var selected: DatabaseReference?
     private(set) var session: DatabaseSession?
@@ -51,6 +64,10 @@ final class AutoFillModel {
     /// unlock screen (and offer Face ID) while it closes.
     private(set) var isFinished = false
     private(set) var loadError: String?
+    /// Whether the entry picked next gets linked to the app being filled
+    /// (an `iOSApp` field), so it is suggested first there afterwards.
+    /// Off unless the user turns it on.
+    var remembersChoice = false
 
     private let codec = KDBXCodec()
     private let complete: (Completion) -> Void
@@ -59,9 +76,9 @@ final class AutoFillModel {
         self.complete = complete
     }
 
-    func start(_ mode: Mode, serviceIdentifiers: [String]) {
+    func start(_ mode: Mode, services: [AutoFillService]) {
         self.mode = mode
-        self.serviceIdentifiers = serviceIdentifiers
+        self.services = services
         Task { await load() }
     }
 
@@ -109,29 +126,19 @@ final class AutoFillModel {
         )
     }
 
-    /// The domain shown as "Suggestions for …".
+    /// The app or site shown as "Suggestions for …".
     var serviceName: String? {
-        serviceIdentifiers.first.map { identifier in
-            URL(string: identifier)?.host() ?? identifier
+        services.first.map { service in
+            switch service.kind {
+            case .app: service.displayName ?? AppID.bundleID(of: service.identifier)
+            case .domain, .url: URL(string: service.identifier)?.host() ?? service.identifier
+            }
         }
     }
 
-    /// Entries for the website being filled, best match first.
-    ///
-    /// Entries here and below come with their field references resolved:
-    /// AutoFill shows and fills the values, never edits these copies.
-    var suggestions: [Entry] {
-        guard let database = session?.database else { return [] }
-        var seen = Set<UUID>()
-        var result: [Entry] = []
-        for identifier in serviceIdentifiers {
-            for match in URLMatcher.matches(for: identifier, in: database) where seen.insert(match.entryID).inserted {
-                if let entry = database.entry(withID: match.entryID).map(database.resolvingReferences), fits(entry) {
-                    result.append(entry)
-                }
-            }
-        }
-        return result
+    /// The app iOS says is asking, when it says.
+    var app: AutoFillService? {
+        services.first { $0.kind == .app }
     }
 
     /// Every usable entry, or the search results for `query`.
@@ -146,11 +153,12 @@ final class AutoFillModel {
         return hits.compactMap { database.entry(withID: $0.entryID).map(database.resolvingReferences) }.filter(fits)
     }
 
-    private func fits(_ entry: Entry) -> Bool {
+    func fits(_ entry: Entry) -> Bool {
         switch mode {
         case .password: !entry.password.isEmpty || !entry.userName.isEmpty
         case .oneTimeCode: Self.otp(of: entry) != nil
         case .text: !insertableFields(of: entry).isEmpty
+        case .save: true
         }
     }
 
@@ -232,6 +240,14 @@ final class AutoFillModel {
     }
 
     func choose(_ entry: Entry) {
+        if remembersChoice, let app, mode == .password || mode == .oneTimeCode {
+            remembersChoice = false
+            Task {
+                await link(entry, to: app)
+                choose(entry)
+            }
+            return
+        }
         let completion: Completion
         switch mode {
         case .password:
@@ -242,6 +258,9 @@ final class AutoFillModel {
             completion = .oneTimeCode(otp.code(at: Date()))
         case .text:
             // Text requests pick a field first; see `insert(_:)`.
+            return
+        case .save:
+            // Save requests update an entry or add one; see `update(_:)`.
             return
         }
         finish(completion)
@@ -254,17 +273,22 @@ final class AutoFillModel {
     /// Answers the request first, then locks: locking changes what the
     /// sheet shows, and nothing should change on screen before iOS has the
     /// answer.
-    private func finish(_ completion: Completion) {
+    func finish(_ completion: Completion) {
         isFinished = true
         complete(completion)
         session?.lock()
     }
 
-    /// The site being filled, for a new entry's title and URL. The URL
-    /// keeps the page but drops its query and fragment (sign-in tokens,
-    /// redirect parameters and the like).
+    /// The site or app being filled, for a new entry's title and URL. The
+    /// URL keeps the page but drops its query and fragment (sign-in
+    /// tokens, redirect parameters and the like). An app gives its name
+    /// as the title and no URL: it is linked by its app ID instead (see
+    /// `addEntry`).
     var newEntryDefaults: (title: String, url: String) {
-        let identifier = serviceIdentifiers.first ?? ""
+        if let app {
+            return (app.displayName ?? "", "")
+        }
+        let identifier = services.first?.identifier ?? ""
         guard !identifier.isEmpty else { return ("", "") }
         let full = identifier.contains("://") ? identifier : "https://\(identifier)"
         var components = URLComponents(string: full)
@@ -295,7 +319,8 @@ final class AutoFillModel {
 
     /// Adds an entry to `groupID` (the top level when nil) and saves the
     /// database. When filling a password, the new entry is filled right
-    /// away.
+    /// away. An entry made for an app is linked to it, so it is suggested
+    /// first there next time.
     func addEntry(
         title: String,
         userName: String,
@@ -306,14 +331,18 @@ final class AutoFillModel {
         guard let session else { throw .locked }
         var entry = session.newEntry(title: title, userName: userName, password: SecretString(password))
         entry.url = url
+        if let app {
+            entry.linkApp(app.identifier)
+        }
         try session.addEntry(entry, to: groupID)
         try await session.save()
         if let groupID {
             rememberGroup(groupID)
         }
-        if mode == .password {
-            choose(entry)
+        switch mode {
+        case .password: choose(entry)
+        case .save: finish(.saved)
+        case .oneTimeCode, .text: break
         }
     }
-
 }
