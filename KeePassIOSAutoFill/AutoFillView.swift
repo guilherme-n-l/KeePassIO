@@ -1,6 +1,7 @@
 import KPAppState
 import KPModel
 import KPPlatform
+import KPSearch
 import KPSession
 import SwiftUI
 import UniformTypeIdentifiers
@@ -129,8 +130,8 @@ private struct EntryPickerView: View {
             let suggestions = model.suggestions
             if query.isEmpty, !suggestions.isEmpty {
                 Section {
-                    ForEach(suggestions) { entry in
-                        row(entry)
+                    ForEach(suggestions) { suggestion in
+                        row(suggestion.entry, reason: suggestion.reason)
                     }
                 } header: {
                     if let serviceName = model.serviceName {
@@ -138,6 +139,17 @@ private struct EntryPickerView: View {
                     } else {
                         Text("Suggestions")
                     }
+                }
+            }
+            if let app = model.rememberableApp {
+                @Bindable var model = model
+                Section {
+                    Toggle(isOn: $model.remembersChoice) {
+                        Text("Remember for \(app.displayName ?? model.serviceName ?? "")")
+                    }
+                    .accessibilityIdentifier("autofill.remember")
+                } footer: {
+                    Text("The entry you pick is linked to this app and suggested first here next time.")
                 }
             }
             Section(query.isEmpty ? "All Entries" : "Results") {
@@ -186,18 +198,18 @@ private struct EntryPickerView: View {
         }
     }
 
-    @ViewBuilder private func row(_ entry: Entry) -> some View {
+    @ViewBuilder private func row(_ entry: Entry, reason: AutoFillMatcher.Reason? = nil) -> some View {
         if model.mode == .text {
             NavigationLink {
                 InsertFieldView(entry: entry)
             } label: {
-                EntryLabel(entry: entry)
+                EntryLabel(entry: entry, reason: reason)
             }
         } else {
             Button {
                 model.choose(entry)
             } label: {
-                EntryLabel(entry: entry)
+                EntryLabel(entry: entry, reason: reason)
             }
         }
     }
@@ -205,16 +217,31 @@ private struct EntryPickerView: View {
 
 private struct EntryLabel: View {
     let entry: Entry
+    /// Why the entry is suggested, for suggestions.
+    var reason: AutoFillMatcher.Reason?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(entry.title.isEmpty ? String(localized: "Untitled") : entry.title)
                 .foregroundStyle(.primary)
-            if !entry.userName.isEmpty {
-                Text(entry.userName)
+            let details = [entry.userName, reason?.summary ?? ""].filter { !$0.isEmpty }
+            if !details.isEmpty {
+                Text(details.joined(separator: " · "))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
+        }
+    }
+}
+
+extension AutoFillMatcher.Reason {
+    /// Why an entry is suggested, in a few words.
+    fileprivate var summary: String {
+        switch self {
+        case .linkedApp: String(localized: "Linked to this app")
+        case .exactURL, .sameHost, .sameDomain: String(localized: "Same website")
+        case .androidApp: String(localized: "Same app on Android")
+        case .similarName: String(localized: "Similar name")
         }
     }
 }
