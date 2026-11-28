@@ -145,12 +145,12 @@ final class AutoFillModel {
     func entries(matching query: String) -> [Entry] {
         guard let session, let database = session.database else { return [] }
         if query.isEmpty {
-            return database.activeEntries.filter(fits).sorted {
+            return database.activeEntries.map(database.resolvingReferences).filter(fits).sorted {
                 $0.title.localizedStandardCompare($1.title) == .orderedAscending
             }
         }
         let hits = session.searchIndex?.search(query, limit: 200) ?? []
-        return hits.compactMap { database.entry(withID: $0.entryID) }.filter(fits)
+        return hits.compactMap { database.entry(withID: $0.entryID).map(database.resolvingReferences) }.filter(fits)
     }
 
     func fits(_ entry: Entry) -> Bool {
@@ -224,7 +224,9 @@ final class AutoFillModel {
             let time = TimeInterval(saved[2]),
             Date().timeIntervalSince1970 - time < Self.justFilledWindow
         else { return nil }
-        return database.entry(withID: entryID).flatMap { $0.password.isEmpty ? nil : $0 }
+        return database.entry(withID: entryID).map(database.resolvingReferences).flatMap {
+            $0.password.isEmpty ? nil : $0
+        }
     }
 
     /// Inserts the password of the entry just filled, for its

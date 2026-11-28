@@ -23,7 +23,8 @@ public enum URLMatcher {
         guard let target = host(of: url) else { return [] }
         let targetDomain = registrableDomain(target)
         var results: [Match] = []
-        for entry in database.activeEntries where !entry.times.isExpired(at: date) {
+        for stored in database.activeEntries where !stored.times.isExpired(at: date) {
+            let entry = database.resolvingReferences(in: stored)
             for candidate in [entry.url, entry.overrideURL ?? ""] + entry.additionalURLs {
                 guard let host = host(of: candidate) else { continue }
                 let quality: Quality? =

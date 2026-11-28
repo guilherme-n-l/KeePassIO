@@ -267,3 +267,53 @@ struct PasswordAuditTests {
         #expect(PasswordAudit.estimatedBits("correct-horse-battery-staple") > 100)
     }
 }
+
+/// Entries whose fields refer to another entry's, as KeePassXC's clones
+/// with references do.
+struct FieldReferenceSearchTests {
+    struct Fixture {
+        var database: Database
+        var original: Entry
+        var clone: Entry
+    }
+
+    static func fixture() throws -> Fixture {
+        var database = Database.empty(name: "Test")
+        var original = Entry()
+        original.title = "Original"
+        original.userName = "alice@example.com"
+        original.password = "Tr0ub4dor&3-horse-staple"
+        original.url = "https://login.example.com"
+        try database.add(original, to: database.root.id)
+        var clone = Entry()
+        clone.title = "Clone"
+        clone.userName = try #require(FieldReference(to: Entry.StandardField.userName, of: original.id)).text
+        clone.password = SecretString(
+            try #require(FieldReference(to: Entry.StandardField.password, of: original.id)).text
+        )
+        clone.url = try #require(FieldReference(to: Entry.StandardField.url, of: original.id)).text
+        try database.add(clone, to: database.root.id)
+        return Fixture(database: database, original: original, clone: clone)
+    }
+
+    @Test func searchFindsAndShowsResolvedValues() throws {
+        let index = SearchIndex(try Self.fixture().database)
+        let hits = index.search("user:alice")
+        #expect(Set(hits.map(\.title)) == ["Original", "Clone"])
+        #expect(hits.allSatisfy { $0.userName == "alice@example.com" })
+        #expect(index.search("REF").isEmpty)
+    }
+
+    @Test func urlMatchingUsesTheReferencedURL() throws {
+        let fixture = try Self.fixture()
+        let matches = URLMatcher.matches(for: "https://login.example.com", in: fixture.database)
+        #expect(Set(matches.map(\.entryID)) == [fixture.original.id, fixture.clone.id])
+    }
+
+    @Test func auditDoesNotCountAReferenceAsReuse() throws {
+        let fixture = try Self.fixture()
+        let findings = PasswordAudit.run(on: fixture.database)
+        #expect(!findings.contains { $0.entryID == fixture.clone.id })
+        #expect(findings.first { $0.entryID == fixture.original.id }?.issues.contains(.reused(count: 2)) != true)
+    }
+}

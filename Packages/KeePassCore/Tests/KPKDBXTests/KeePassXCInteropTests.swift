@@ -130,6 +130,62 @@ struct KeePassXCInteropTests {
         #expect(decoded.root.entries.contains { $0.id == ours.id })
     }
 
+    /// Field references resolve to the same values here as in KeePassXC,
+    /// both for references we write and for ones KeePassXC writes.
+    @Test func fieldReferencesResolveAsInKeePassXC() async throws {
+        let file = directory.appendingPathComponent("references.kdbx")
+        let key = CompositeKey(password: SecretString(password))
+        var database = Database.empty(name: "References")
+        var original = Entry()
+        original.title = "Original"
+        original.userName = "alice"
+        original.password = "hunter2"
+        original.url = "https://example.com"
+        try database.add(original, to: database.root.id)
+        var clone = Entry()
+        clone.title = "Clone"
+        clone.userName = "\(try #require(FieldReference(to: "UserName", of: original.id)).text) at {REF:A@T:Original}"
+        clone.password = SecretString(try #require(FieldReference(to: "Password", of: original.id)).text)
+        try database.add(clone, to: database.root.id)
+        try await codec.encode(database, settings: fastSettings, key: key, context: nil).write(to: file)
+
+        let shown = try KeePassXC.run(
+            ["show", "-s", "-a", "UserName", "-a", "Password", file.path, "Clone"],
+            input: password
+        )
+        let ours = database.resolvingReferences(in: clone)
+        #expect(shown == "\(ours.userName)\n\(ours.password.reveal())")
+        #expect(ours.userName == "alice at https://example.com")
+
+        // Entries KeePassXC adds, referring by its own UUIDs, lowercase
+        // field letters, a lowercase prefix (not a reference in KeePassXC)
+        // and a cycle. Each must show the same here as in keepassxc-cli.
+        _ = try KeePassXC.run(["add", "-u", "bob", "-p", file.path, "Target"], input: "\(password)\nsecret")
+        let target = try #require(
+            try await codec.decode(Data(contentsOf: file), key: key, memoryLimit: nil).database
+                .root.entries.first { $0.title == "Target" }
+        )
+        let byUUID = try #require(FieldReference(to: "UserName", of: target.id)).text
+        let written: [(title: String, userName: String)] = [
+            ("By UUID", byUUID),
+            ("Lowercase letters", "{REF:u@t:Original}"),
+            ("Lowercase prefix", "{ref:u@t:Original}"),
+            ("Cycle A", "{REF:U@T:Cycle B}"),
+            ("Cycle B", "{REF:U@T:Cycle A}"),
+        ]
+        for entry in written {
+            _ = try KeePassXC.run(["add", "-u", entry.userName, file.path, entry.title], input: password)
+        }
+        let decoded = try await codec.decode(Data(contentsOf: file), key: key, memoryLimit: nil).database
+        for entry in written {
+            let stored = try #require(decoded.root.entries.first { $0.title == entry.title })
+            #expect(stored.userName == entry.userName)
+            let theirs = try KeePassXC.run(["show", "-s", "-a", "UserName", file.path, entry.title], input: password)
+            #expect(decoded.resolvingReferences(in: stored).userName == theirs, "\(entry.title)")
+        }
+        #expect(decoded.resolveReferences(in: byUUID) == "bob")
+    }
+
     @Test func kdbx3FilesAreRejectedBeforeDecrypting() async throws {
         let file = directory.appendingPathComponent("legacy.kdbx")
         // keepassxc-cli db-create writes KDBX 3.1.

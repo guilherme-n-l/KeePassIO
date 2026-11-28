@@ -55,8 +55,9 @@ extension AppModel {
         guard settings.mayDownloadFavicons else { return 0 }
         var count = 0
         for id in entryIDs {
-            guard let entry = session.database?.entry(withID: id), !entry.url.isEmpty else { continue }
-            guard let png = await WebsiteIcon.fetch(for: entry.url) else { continue }
+            guard let database = session.database, let stored = database.entry(withID: id) else { continue }
+            let url = database.resolvingReferences(in: stored).url
+            guard !url.isEmpty, let png = await WebsiteIcon.fetch(for: url) else { continue }
             if (try? session.setCustomIcon(png, forEntry: id)) != nil {
                 count += 1
             }
