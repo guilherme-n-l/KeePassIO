@@ -10,7 +10,7 @@ Why a fork and not a dependency: see `docs/adr/0001-kdbx-library.md`.
 
 ## Local patches
 
-Each patch is its own commit in this repository, touching only this directory; `git log -- Vendor/KDBXKit` lists them. The epoch and unknown-element fixes are also prepared for upstream (issues and a pull request to shadone/KDBXKit).
+Each patch is its own commit in this repository, touching only this directory; `git log -- Vendor/KDBXKit` lists them. The epoch and unknown-element fixes are also prepared for upstream (issues and a pull request to shadone/KDBXKit). The UUID byte-order fix is upstream as [issue #12](https://github.com/shadone/KDBXKit/issues/12) and [pull request #13](https://github.com/shadone/KDBXKit/pull/13).
 
 | Patch | Why |
 |---|---|
