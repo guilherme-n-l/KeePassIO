@@ -32,7 +32,7 @@ let package = Package(
         .package(url: "https://github.com/apple/swift-argument-parser.git", exact: "1.8.2"),
         .package(url: "https://github.com/apple/swift-crypto.git", exact: "3.15.1"),
         .package(path: "../../Vendor/KDBXKit"),
-        .package(url: "https://github.com/ameshkov/swift-psl.git", exact: "1.1.197"),
+        .package(url: "https://github.com/ameshkov/swift-psl.git", exact: "1.1.203"),
     ],
     targets: [
         .target(name: "KPObservability"),
